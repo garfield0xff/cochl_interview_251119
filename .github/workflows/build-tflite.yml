@@ -14,8 +14,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: build-tflite-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: true
+  group: build-all-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: false
 
 jobs:
   build-tflite-linux:
@@ -85,6 +85,7 @@ jobs:
 
   build-tflite-linux-arm64:
     runs-on: ubuntu-latest
+    needs: build-tflite-linux
 
     steps:
     - name: Checkout code
@@ -102,7 +103,7 @@ jobs:
         path: |
           tensorflow
           tflite-build
-        key: tflite-linux-arm64-v${{ env.TENSORFLOW_VERSION }}-ruy-j1
+        key: tflite-linux-arm64-v${{ env.TENSORFLOW_VERSION }}
 
     - name: Build TFLite for ARM64
       if: steps.cache-tflite.outputs.cache-hit != 'true'
@@ -113,8 +114,6 @@ jobs:
         githubToken: ${{ github.token }}
         dockerRunArgs: |
           --volume "${PWD}:/workspace"
-          --memory="4g"
-          --memory-swap="4g"
         install: |
           apt-get update -q -y
           apt-get install -q -y git build-essential cmake ninja-build
@@ -127,10 +126,9 @@ jobs:
           cd tflite-build
           cmake -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DTFLITE_ENABLE_XNNPACK=OFF \
-            -DTFLITE_ENABLE_RUY=ON \
+            -DTFLITE_ENABLE_XNNPACK=ON \
             ../tensorflow/tensorflow/lite
-          cmake --build . -j1
+          cmake --build . -j$(nproc)
 
     - name: Package TFLite
       run: |
