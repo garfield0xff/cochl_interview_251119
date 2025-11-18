@@ -1,0 +1,482 @@
+name: Build TVM Whl
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  TVM_VERSION: "0.22.0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-tvm-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build-tvm-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Cache conda packages
+      uses: actions/cache@v4
+      with:
+        path: ~/conda_pkgs_dir
+        key: ${{ runner.os }}-conda-pkgs-${{ hashFiles('**/build-tvm.yml') }}
+
+    - name: Cache TVM wheel
+      id: cache-tvm-wheel
+      uses: actions/cache@v4
+      with:
+        path: |
+          tvm-source
+          dist
+        key: tvm-windows-wheel-v${{ env.TVM_VERSION }}
+        restore-keys: |
+          tvm-windows-wheel-v${{ env.TVM_VERSION }}-
+
+    - name: Setup Miniconda
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        activate-environment: tvm-build
+        python-version: '3.9'
+        miniforge-version: latest
+        auto-activate-base: false
+
+    - name: Install build dependencies
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      shell: cmd /C call {0}
+      run: |
+        conda install -c conda-forge llvmdev cmake ninja zlib libxml2-devel -y
+
+    - name: Download TVM source
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        curl -L -o tvm-src.tar.gz https://github.com/apache/tvm/releases/download/v${{ env.TVM_VERSION }}/apache-tvm-src-v${{ env.TVM_VERSION }}.tar.gz
+        tar -xzf tvm-src.tar.gz
+        mv apache-tvm-src-v${{ env.TVM_VERSION }} tvm-source
+
+    - name: Build TVM wheel
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      shell: cmd /C call {0}
+      run: |
+        cd tvm-source
+        pip install scikit-build-core
+        set CMAKE_ARGS=-DUSE_LLVM=ON -DUSE_CUDA=ON -DUSE_CUDNN=ON -DUSE_CUBLAS=ON -DBUILD_TESTING=OFF
+        pip wheel --no-deps -w ../dist . -v
+
+    - name: Package TVM wheel
+      shell: pwsh
+      run: |
+        Compress-Archive -Path dist/*.whl -DestinationPath tvm-windows-x64.zip
+
+    - name: Upload TVM Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tvm-windows-x64
+        path: tvm-windows-x64.zip
+        retention-days: 30
+
+    - name: Upload to Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: tvm-v${{ env.TVM_VERSION }}
+        name: TVM v${{ env.TVM_VERSION }} Binary
+        files: tvm-windows-x64.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-tvm-windows:
+    runs-on: windows-latest
+    needs: build-tvm-windows
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download TVM Windows artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: tvm-windows-x64
+
+    - name: Extract TVM wheel
+      shell: pwsh
+      run: |
+        Expand-Archive -Path tvm-windows-x64.zip -DestinationPath dist
+
+    - name: Setup Python environment
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        activate-environment: tvm-test
+        python-version: '3.9'
+        miniforge-version: latest
+        auto-activate-base: false
+
+    - name: Install dependencies and test TVM
+      shell: cmd /C call {0}
+      run: |
+        conda install -c conda-forge llvmdev -y
+        pip install dist/*.whl
+        pip install numpy torch torchvision
+        python python/tvm_ext/relax.py
+
+  build-tvm-macos:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Cache conda packages
+      uses: actions/cache@v4
+      with:
+        path: ~/conda_pkgs_dir
+        key: ${{ runner.os }}-conda-pkgs-${{ hashFiles('**/build-tvm.yml') }}
+
+    - name: Cache TVM wheel
+      id: cache-tvm-wheel
+      uses: actions/cache@v4
+      with:
+        path: |
+          tvm-source
+          dist
+        key: tvm-macos-wheel-v${{ env.TVM_VERSION }}
+        restore-keys: |
+          tvm-macos-wheel-v${{ env.TVM_VERSION }}-
+
+    - name: Setup Miniconda
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        activate-environment: tvm-build
+        python-version: '3.9'
+        miniforge-version: latest
+        auto-activate-base: false
+
+    - name: Install build dependencies
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      shell: bash -l {0}
+      run: |
+        conda install -c conda-forge llvmdev cmake ninja zlib -y
+
+    - name: Download TVM source
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      run: |
+        curl -L -o tvm-src.tar.gz https://github.com/apache/tvm/releases/download/v${{ env.TVM_VERSION }}/apache-tvm-src-v${{ env.TVM_VERSION }}.tar.gz
+        tar -xzf tvm-src.tar.gz
+        mv apache-tvm-src-v${{ env.TVM_VERSION }} tvm-source
+
+    - name: Build TVM wheel (macOS with Metal GPU support)
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      shell: bash -l {0}
+      run: |
+        cd tvm-source
+        pip install scikit-build-core
+        export CMAKE_ARGS="-DUSE_LLVM=ON -DUSE_METAL=ON -DBUILD_TESTING=OFF"
+        pip wheel --no-deps -w ../dist . -v
+
+    - name: Package TVM wheel
+      run: |
+        tar -czf tvm-macos-universal.tar.gz -C dist .
+
+    - name: Upload TVM macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tvm-macos-universal
+        path: tvm-macos-universal.tar.gz
+        retention-days: 30
+
+    - name: Upload to Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: tvm-v${{ env.TVM_VERSION }}
+        name: TVM v${{ env.TVM_VERSION }} Binary
+        files: tvm-macos-universal.tar.gz
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-tvm-macos:
+    runs-on: macos-latest
+    needs: build-tvm-macos
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download TVM macOS artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: tvm-macos-universal
+
+    - name: Extract TVM wheel
+      run: |
+        mkdir dist
+        tar -xzf tvm-macos-universal.tar.gz -C dist
+
+    - name: Setup Python environment
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        activate-environment: tvm-test
+        python-version: '3.9'
+        miniforge-version: latest
+        auto-activate-base: false
+
+    - name: Install runtime dependencies
+      shell: bash -l {0}
+      run: |
+        conda install -c conda-forge llvmdev -y
+
+    - name: Install TVM wheel and test dependencies
+      shell: bash -l {0}
+      run: |
+        pip install dist/*.whl
+        pip install numpy torch torchvision
+
+    - name: Test TVM installation
+      shell: bash -l {0}
+      run: |
+        python python/tvm_ext/relax.py
+
+  build-tvm-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Cache conda packages
+      uses: actions/cache@v4
+      with:
+        path: ~/conda_pkgs_dir
+        key: ${{ runner.os }}-conda-pkgs-${{ hashFiles('**/build-tvm.yml') }}
+
+    - name: Cache TVM wheel
+      id: cache-tvm-wheel
+      uses: actions/cache@v4
+      with:
+        path: |
+          tvm-source
+          dist
+        key: tvm-linux-wheel-v${{ env.TVM_VERSION }}
+        restore-keys: |
+          tvm-linux-wheel-v${{ env.TVM_VERSION }}-
+
+    - name: Setup Miniconda
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        activate-environment: tvm-build
+        python-version: '3.9'
+        miniforge-version: latest
+        auto-activate-base: false
+
+    - name: Install build dependencies
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      shell: bash -l {0}
+      run: |
+        conda install -c conda-forge llvmdev cmake ninja zlib -y
+
+    - name: Download TVM source
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      run: |
+        curl -L -o tvm-src.tar.gz https://github.com/apache/tvm/releases/download/v${{ env.TVM_VERSION }}/apache-tvm-src-v${{ env.TVM_VERSION }}.tar.gz
+        tar -xzf tvm-src.tar.gz
+        mv apache-tvm-src-v${{ env.TVM_VERSION }} tvm-source
+
+    - name: Build TVM wheel (Linux with CUDA/ROCm support)
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      shell: bash -l {0}
+      run: |
+        cd tvm-source
+        pip install scikit-build-core
+        export CMAKE_ARGS="-DUSE_LLVM=ON -DUSE_CUDA=ON -DUSE_CUDNN=ON -DUSE_CUBLAS=ON -DUSE_ROCM=ON -DBUILD_TESTING=OFF"
+        pip wheel --no-deps -w ../dist . -v
+
+    - name: Package TVM wheel
+      run: |
+        tar -czf tvm-linux-x64.tar.gz -C dist .
+
+    - name: Upload TVM Linux artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tvm-linux-x64
+        path: tvm-linux-x64.tar.gz
+        retention-days: 30
+
+    - name: Upload to Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: tvm-v${{ env.TVM_VERSION }}
+        name: TVM v${{ env.TVM_VERSION }} Binary
+        files: tvm-linux-x64.tar.gz
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-tvm-linux:
+    runs-on: ubuntu-latest
+    needs: build-tvm-linux
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download TVM Linux artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: tvm-linux-x64
+
+    - name: Extract TVM wheel
+      run: |
+        mkdir dist
+        tar -xzf tvm-linux-x64.tar.gz -C dist
+
+    - name: Setup Python environment
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        activate-environment: tvm-test
+        python-version: '3.9'
+        miniforge-version: latest
+        auto-activate-base: false
+
+    - name: Install runtime dependencies
+      shell: bash -l {0}
+      run: |
+        conda install -c conda-forge llvmdev -y
+
+    - name: Install TVM wheel and test dependencies
+      shell: bash -l {0}
+      run: |
+        pip install dist/*.whl
+        pip install numpy torch torchvision
+
+    - name: Test TVM installation
+      shell: bash -l {0}
+      run: |
+        python python/tvm_ext/relax.py
+
+  build-tvm-linux-arm64:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+
+    - name: Cache TVM wheel
+      id: cache-tvm-wheel
+      uses: actions/cache@v4
+      with:
+        path: |
+          tvm-source
+          dist
+        key: tvm-linux-arm64-wheel-v${{ env.TVM_VERSION }}
+        restore-keys: |
+          tvm-linux-arm64-wheel-v${{ env.TVM_VERSION }}-
+
+    - name: Build TVM wheel for ARM64
+      if: steps.cache-tvm-wheel.outputs.cache-hit != 'true'
+      uses: uraimo/run-on-arch-action@v2
+      with:
+        arch: aarch64
+        distro: ubuntu22.04
+        githubToken: ${{ github.token }}
+        dockerRunArgs: |
+          --volume "${PWD}:/workspace"
+        install: |
+          apt-get update -q -y
+          apt-get install -q -y wget curl git build-essential cmake ninja-build python3 python3-pip llvm-dev libxml2-dev zlib1g-dev
+        run: |
+          cd /workspace
+          if [ ! -d "tvm-source" ]; then
+            curl -L -o tvm-src.tar.gz https://github.com/apache/tvm/releases/download/v${{ env.TVM_VERSION }}/apache-tvm-src-v${{ env.TVM_VERSION }}.tar.gz
+            tar -xzf tvm-src.tar.gz
+            mv apache-tvm-src-v${{ env.TVM_VERSION }} tvm-source
+          fi
+          cd tvm-source
+          pip3 install --upgrade pip setuptools wheel
+          pip3 install scikit-build-core
+          export CMAKE_ARGS="-DUSE_LLVM=ON -DBUILD_TESTING=OFF"
+          pip3 wheel --no-deps -w ../dist . -v
+
+    - name: Package TVM wheel
+      run: |
+        tar -czf tvm-linux-arm64.tar.gz -C dist .
+
+    - name: Upload TVM Linux ARM64 artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tvm-linux-arm64
+        path: tvm-linux-arm64.tar.gz
+        retention-days: 30
+
+    - name: Upload to Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: tvm-v${{ env.TVM_VERSION }}
+        name: TVM v${{ env.TVM_VERSION }} Binary
+        files: tvm-linux-arm64.tar.gz
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-tvm-linux-arm64:
+    runs-on: ubuntu-latest
+    needs: build-tvm-linux-arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+
+    - name: Download TVM Linux ARM64 artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: tvm-linux-arm64
+
+    - name: Test TVM ARM64 wheel
+      uses: uraimo/run-on-arch-action@v2
+      with:
+        arch: aarch64
+        distro: ubuntu22.04
+        githubToken: ${{ github.token }}
+        dockerRunArgs: |
+          --volume "${PWD}:/workspace"
+        install: |
+          apt-get update -q -y
+          apt-get install -q -y python3 python3-pip llvm-dev
+        run: |
+          cd /workspace
+          mkdir -p dist
+          tar -xzf tvm-linux-arm64.tar.gz -C dist
+          pip3 install --upgrade pip
+          pip3 install dist/*.whl
+          pip3 install numpy torch torchvision
+          python3 python/tvm_ext/relax.py
