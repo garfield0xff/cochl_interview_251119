@@ -102,7 +102,7 @@ jobs:
         path: |
           tensorflow
           tflite-build
-        key: tflite-linux-arm64-v${{ env.TENSORFLOW_VERSION }}
+        key: tflite-linux-arm64-v${{ env.TENSORFLOW_VERSION }}-ruy-j1
 
     - name: Build TFLite for ARM64
       if: steps.cache-tflite.outputs.cache-hit != 'true'
@@ -113,6 +113,8 @@ jobs:
         githubToken: ${{ github.token }}
         dockerRunArgs: |
           --volume "${PWD}:/workspace"
+          --memory="4g"
+          --memory-swap="4g"
         install: |
           apt-get update -q -y
           apt-get install -q -y git build-essential cmake ninja-build
@@ -125,9 +127,10 @@ jobs:
           cd tflite-build
           cmake -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DTFLITE_ENABLE_XNNPACK=ON \
+            -DTFLITE_ENABLE_XNNPACK=OFF \
+            -DTFLITE_ENABLE_RUY=ON \
             ../tensorflow/tensorflow/lite
-          cmake --build . -j $(nproc)
+          cmake --build . -j1
 
     - name: Package TFLite
       run: |

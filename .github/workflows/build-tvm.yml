@@ -183,7 +183,7 @@ jobs:
           tvm-source
           dist
           tvm-cpp
-        key: tvm-linux-arm64-build-v${{ env.TVM_VERSION }}
+        key: tvm-linux-arm64-build-v${{ env.TVM_VERSION }}-j2
         restore-keys: |
           tvm-linux-arm64-build-v${{ env.TVM_VERSION }}-
 
@@ -221,6 +221,8 @@ jobs:
         githubToken: ${{ github.token }}
         dockerRunArgs: |
           --volume "${PWD}:/workspace"
+          --memory="4g"
+          --memory-swap="4g"
         install: |
           apt-get update -q -y
           apt-get install -q -y build-essential cmake ninja-build llvm-dev libxml2-dev zlib1g-dev
@@ -229,7 +231,7 @@ jobs:
           mkdir -p build
           cd build
           cmake -DUSE_LLVM=ON -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/workspace/tvm-cpp ..
-          cmake --build . -j$(nproc)
+          cmake --build . -j2
           cmake --install .
 
     - name: Package TVM wheel
