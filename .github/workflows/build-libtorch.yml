@@ -64,6 +64,7 @@ jobs:
   build-libtorch-linux-arm64:
     runs-on: ubuntu-latest
     needs: build-libtorch-linux
+    timeout-minutes: 180
 
     steps:
     - name: Checkout code
@@ -79,7 +80,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: libtorch
-        key: libtorch-linux-arm64-cpu-v${{ env.PYTORCH_VERSION }}-j1
+        key: libtorch-linux-arm64-cpu-v${{ env.PYTORCH_VERSION }}-nproc
 
     - name: Build LibTorch for ARM64
       if: steps.cache-libtorch.outputs.cache-hit != 'true'
@@ -109,7 +110,7 @@ jobs:
                 -DUSE_OPENMP=ON \
                 -DBUILD_PYTHON=OFF \
                 ..
-          cmake --build . --target install -j1
+          cmake --build . --target install -j$(nproc)
 
     - name: Package LibTorch
       run: |

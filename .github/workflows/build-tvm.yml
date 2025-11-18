@@ -166,6 +166,7 @@ jobs:
   build-tvm-linux-arm64:
     runs-on: ubuntu-latest
     needs: test-tvm-linux
+    timeout-minutes: 180
 
     steps:
     - name: Checkout code
@@ -184,7 +185,7 @@ jobs:
           tvm-source
           dist
           tvm-cpp
-        key: tvm-linux-arm64-build-v${{ env.TVM_VERSION }}-j1
+        key: tvm-linux-arm64-build-v${{ env.TVM_VERSION }}-nproc
         restore-keys: |
           tvm-linux-arm64-build-v${{ env.TVM_VERSION }}-
 
@@ -230,7 +231,7 @@ jobs:
           mkdir -p build
           cd build
           cmake -DUSE_LLVM=ON -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/workspace/tvm-cpp ..
-          cmake --build . -j1
+          cmake --build . -j$(nproc)
           cmake --install .
 
     - name: Package TVM wheel

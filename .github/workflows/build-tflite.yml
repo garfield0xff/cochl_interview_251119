@@ -87,6 +87,7 @@ jobs:
   build-tflite-linux-arm64:
     runs-on: ubuntu-latest
     needs: build-tflite-linux
+    timeout-minutes: 180
 
     steps:
     - name: Checkout code
@@ -104,7 +105,7 @@ jobs:
         path: |
           tensorflow
           tflite-build
-        key: tflite-linux-arm64-v${{ env.TENSORFLOW_VERSION }}-nowarn-j1
+        key: tflite-linux-arm64-v${{ env.TENSORFLOW_VERSION }}-nowarn-nproc
 
     - name: Build TFLite for ARM64
       if: steps.cache-tflite.outputs.cache-hit != 'true'
@@ -130,7 +131,7 @@ jobs:
             -DTFLITE_ENABLE_XNNPACK=ON \
             -DCMAKE_CXX_FLAGS="-Wno-error=deprecated-declarations" \
             ../tensorflow/tensorflow/lite
-          cmake --build . -j1
+          cmake --build . -j$(nproc)
 
     - name: Package TFLite
       run: |
