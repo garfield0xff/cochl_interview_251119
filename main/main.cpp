@@ -9,7 +9,7 @@ int main(int argc, char** argv) {
 
     // Parse arguments
     if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <model> <image> <class_json>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << "<model> <image> <class_json>" << std::endl;
         std::cerr << "Example: " << argv[0]
                   << " ./models/resnet50.tflite"
                   << " ./api/test/dog.png"
@@ -17,23 +17,19 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Library path is defined in CMakeLists.txt
     std::string library_path = COCHL_API_LIB_PATH;
     std::string model_path = argv[1];
     std::string image_path = argv[2];
     std::string class_json = argv[3];
 
-    // Create inference engine
     cochl::InferenceEngine engine;
 
-    // Load library
     std::cout << "\n[1] Loading library: " << library_path << std::endl;
     if (!engine.LoadLibrary(library_path)) {
         std::cerr << "Failed to load library" << std::endl;
         return 1;
     }
 
-    // Load model
     std::cout << "\n[2] Loading model: " << model_path << std::endl;
     if (!engine.LoadModel(model_path)) {
         std::cerr << "Failed to load model" << std::endl;
@@ -63,7 +59,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Prepare output buffer
     std::vector<float> output(output_size);
 
     // Run inference
@@ -91,7 +86,6 @@ int main(int argc, char** argv) {
                       indexed_output.end(),
                       [](const auto& a, const auto& b) { return a.second > b.second; });
 
-    // Display top 5 with class names
     for (int i = 0; i < std::min(5, static_cast<int>(indexed_output.size())); ++i) {
         int class_idx = indexed_output[i].first;
         float score = indexed_output[i].second;

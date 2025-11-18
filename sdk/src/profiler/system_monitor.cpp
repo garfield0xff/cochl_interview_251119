@@ -20,7 +20,6 @@
 namespace cochl {
 namespace kernel {
 
-// Static storage for latency tracking
 static std::vector<double> latency_samples;
 static constexpr size_t MAX_SAMPLES = 1000;
 
@@ -65,50 +64,10 @@ SystemMonitor::MemoryInfo SystemMonitor::GetMemoryInfo() {
   return info;
 }
 
-SystemMonitor::TemperatureInfo SystemMonitor::GetTemperature() {
-  TemperatureInfo info{};
-  info.supported      = false;
-  info.cpu_temp_celsius = 0.0;
-
-#ifdef __linux__
-  // Try to read from thermal zone (common on Raspberry Pi and Linux)
-  std::ifstream temp_file("/sys/class/thermal/thermal_zone0/temp");
-  if (temp_file.is_open()) {
-    int temp_millidegrees;
-    temp_file >> temp_millidegrees;
-    info.cpu_temp_celsius = temp_millidegrees / 1000.0;
-    info.supported      = true;
-  }
-
-  // Fallback: Try Raspberry Pi specific location
-  if (!info.supported) {
-    std::ifstream rpi_temp("/sys/class/hwmon/hwmon0/temp1_input");
-    if (rpi_temp.is_open()) {
-      int temp_millidegrees;
-      rpi_temp >> temp_millidegrees;
-      info.cpu_temp_celsius = temp_millidegrees / 1000.0;
-      info.supported      = true;
-    }
-  }
-
-#elif __APPLE__
-  // macOS temperature monitoring requires IOKit (complex)
-  // Leave as unsupported for now
-  info.supported = false;
-
-#elif _WIN32
-  // Windows temperature monitoring requires WMI or specific drivers
-  // Leave as unsupported for now
-  info.supported = false;
-#endif
-
-  return info;
-}
 
 void SystemMonitor::RecordLatency(double latency_ms) {
   latency_samples.push_back(latency_ms);
 
-  // Keep only last MAX_SAMPLES
   if (latency_samples.size() > MAX_SAMPLES) {
     latency_samples.erase(latency_samples.begin());
   }
@@ -143,18 +102,9 @@ void SystemMonitor::ResetLatency() { latency_samples.clear(); }
 std::string SystemMonitor::GetSystemStatus() {
   std::ostringstream oss;
 
-  // Memory information
   auto mem = GetMemoryInfo();
   oss << "Memory: " << (mem.used_bytes / (1024 * 1024)) << " MB / "
       << (mem.total_bytes / (1024 * 1024)) << " MB (" << mem.usage_percent << "%)\n";
-
-  // Temperature information
-  auto temp = GetTemperature();
-  if (temp.supported) {
-    oss << "CPU Temperature: " << temp.cpu_temp_celsius << " °C\n";
-  } else {
-    oss << "CPU Temperature: Not supported on this platform\n";
-  }
 
   // Latency information
   auto latency = GetLatencyInfo();
