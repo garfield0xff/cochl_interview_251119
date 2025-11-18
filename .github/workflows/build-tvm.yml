@@ -184,7 +184,7 @@ jobs:
           tvm-source
           dist
           tvm-cpp
-        key: tvm-linux-arm64-build-v${{ env.TVM_VERSION }}
+        key: tvm-linux-arm64-build-v${{ env.TVM_VERSION }}-j1
         restore-keys: |
           tvm-linux-arm64-build-v${{ env.TVM_VERSION }}-
 
@@ -230,7 +230,7 @@ jobs:
           mkdir -p build
           cd build
           cmake -DUSE_LLVM=ON -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/workspace/tvm-cpp ..
-          cmake --build . -j$(nproc)
+          cmake --build . -j1
           cmake --install .
 
     - name: Package TVM wheel

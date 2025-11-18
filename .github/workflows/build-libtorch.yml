@@ -79,7 +79,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: libtorch
-        key: libtorch-linux-arm64-cpu-v${{ env.PYTORCH_VERSION }}
+        key: libtorch-linux-arm64-cpu-v${{ env.PYTORCH_VERSION }}-j1
 
     - name: Build LibTorch for ARM64
       if: steps.cache-libtorch.outputs.cache-hit != 'true'
@@ -109,7 +109,7 @@ jobs:
                 -DUSE_OPENMP=ON \
                 -DBUILD_PYTHON=OFF \
                 ..
-          cmake --build . --target install -j$(nproc)
+          cmake --build . --target install -j1
 
     - name: Package LibTorch
       run: |
