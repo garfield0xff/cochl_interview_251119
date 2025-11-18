@@ -7,11 +7,9 @@
 #include <memory>
 #include <vector>
 
-// Forward declarations for TensorFlow Lite
-namespace tflite {
-class FlatBufferModel;
-class Interpreter;
-}  // namespace tflite
+// TensorFlow Lite includes
+#include <tensorflow/lite/interpreter.h>
+#include <tensorflow/lite/model.h>
 
 namespace cochl_api {
 namespace runtime {
@@ -28,6 +26,8 @@ public:
   bool RunInference(const float* input, size_t input_size, float* output,
                     size_t output_size) override;
   const char* GetRuntimeType() const override { return "TensorFlow Lite"; }
+  size_t GetInputSize() const override;
+  size_t GetOutputSize() const override;
 
 private:
   std::unique_ptr<tflite::FlatBufferModel> model_;

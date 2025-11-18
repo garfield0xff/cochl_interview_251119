@@ -1,0 +1,58 @@
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set working directory
+WORKDIR /workspace
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    curl \
+    wget \
+    python3 \
+    python3-pip \
+    python3-dev \
+    llvm-14 \
+    llvm-14-dev \
+    libxml2-dev \
+    zlib1g-dev \
+    libopenblas-dev \
+    libomp-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set LLVM environment variables
+ENV LLVM_CONFIG=/usr/bin/llvm-config-14
+ENV LD_LIBRARY_PATH=/usr/lib/llvm-14/lib:$LD_LIBRARY_PATH
+
+# Upgrade pip
+RUN pip3 install --upgrade pip setuptools wheel
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir \
+    numpy \
+    scipy
+
+# Copy project files
+COPY . /workspace
+
+# Download ARM64 pre-built libraries from GitHub Releases
+RUN chmod +x /workspace/script/download-releases-arm64.sh && \
+    cd /workspace && \
+    ./script/download-releases-arm64.sh || echo "Warning: Failed to download some libraries"
+
+# Set library paths
+ENV LIBTORCH_HOME=/workspace/third_party/libtorch-arm64
+ENV TFLITE_HOME=/workspace/third_party/tflite-arm64
+ENV TVM_HOME=/workspace/third_party/tvm-arm64
+
+# Update library path
+ENV LD_LIBRARY_PATH=${LIBTORCH_HOME}/lib:${TFLITE_HOME}/lib:${TVM_HOME}/lib:${LD_LIBRARY_PATH}
+ENV CMAKE_PREFIX_PATH=${LIBTORCH_HOME}:${CMAKE_PREFIX_PATH}
+
+# Default command
+CMD ["/bin/bash"]

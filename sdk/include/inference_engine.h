@@ -1,131 +1,71 @@
-#ifndef SDK_INFERENCE_ENGINE_H
-#define SDK_INFERENCE_ENGINE_H
+// Main inference engine that manages backend selection and execution.
+// Uses dlopen to dynamically load libcochl_api.so at runtime.
 
-#include <functional>
+#pragma once
+
 #include <memory>
 #include <string>
-#include <vector>
 
 namespace cochl {
-class ThreadPool;
-}
 
-namespace cochl_sdk {
-
-// Forward declaration
-class Profiler;
-
-/**
- * @brief Main inference engine for edge devices
- *
- * Uses API shared library (libcochl_api.so/dll) for inference.
- * Supports Linux, Windows, and Mac platforms.
- */
-class InferenceEngine {
-public:
-  /**
-   * @brief Create inference engine
-   * @param model_path Path to model file (.tflite, .pt, .pth)
-   * @param num_threads Number of threads for thread pool (0 = auto)
-   * @param enable_profiler Enable performance profiling
-   * @return Unique pointer to InferenceEngine, nullptr on failure
-   */
-  static std::unique_ptr<InferenceEngine> Create(const std::string& model_path,
-                                                   int num_threads = 0,
-                                                   bool enable_profiler = false);
-
-  ~InferenceEngine();
-
-  /**
-   * @brief Run inference
-   * @param input Input data array
-   * @param input_size Size of input array
-   * @param output Output data array
-   * @param output_size Size of output array
-   * @return true if successful, false otherwise
-   */
-  bool RunInference(const float* input, size_t input_size, float* output,
-                    size_t output_size);
-
-  /**
-   * @brief Run inference asynchronously using thread pool
-   * @param input Input data array
-   * @param input_size Size of input array
-   * @param output Output data array
-   * @param output_size Size of output array
-   * @param callback Callback function called when inference completes
-   * @return true if task submitted successfully, false otherwise
-   */
-  bool RunInferenceAsync(const float* input, size_t input_size, float* output,
-                         size_t output_size,
-                         std::function<void(bool success)> callback);
-
-  /**
-   * @brief Get profiling statistics
-   * @return Profiling stats as formatted string
-   */
-  std::string GetProfilingStats() const;
-
-  /**
-   * @brief Get system resource usage
-   * @return Resource usage info (memory, temperature, etc.)
-   */
-  std::string GetResourceUsage() const;
-
-  /**
-   * @brief Get input size required by model
-   * @return Input size
-   */
-  size_t GetInputSize() const { return input_size_; }
-
-  /**
-   * @brief Get output size produced by model
-   * @return Output size
-   */
-  size_t GetOutputSize() const { return output_size_; }
-
-private:
-  InferenceEngine();
-
-  // API library handle (dynamically loaded)
-  void* api_handle_;
-  void* cochl_api_instance_;
-
-  // Function pointers from API library
-  using CreateFn = void* (*)(const char*);
-  using RunInferenceFn = bool (*)(void*, const float*, size_t, float*, size_t);
-  using GetInputSizeFn = size_t (*)(void*);
-  using GetOutputSizeFn = size_t (*)(void*);
-  using DestroyFn = void (*)(void*);
-
-  CreateFn create_fn_;
-  RunInferenceFn run_inference_fn_;
-  GetInputSizeFn get_input_size_fn_;
-  GetOutputSizeFn get_output_size_fn_;
-  DestroyFn destroy_fn_;
-
-  // SDK components
-  std::unique_ptr<Profiler> profiler_;
-  std::unique_ptr<cochl::ThreadPool> thread_pool_;
-
-  // Model info
-  size_t input_size_;
-  size_t output_size_;
-  bool initialized_;
-
-  /**
-   * @brief Load API shared library
-   * @param model_path Model path (used to locate library)
-   * @return true if successful, false otherwise
-   */
-  bool LoadApiLibrary(const std::string& model_path);
-
-  /**
-   * @brief Unload API shared library
-   */
-  void UnloadApiLibrary();
+enum class InferenceStatus {
+  OK,
+  ERROR_NOT_INITIALIZED,
+  ERROR_INVALID_INPUT,
+  ERROR_INFERENCE_FAILED,
+  ERROR_LIBRARY_LOAD_FAILED
 };
 
-}  // namespace cochl_sdk
+class InferenceEngine {
+ public:
+  InferenceEngine();
+  ~InferenceEngine();
 
-#endif  // SDK_INFERENCE_ENGINE_H
+  // Load libcochl_api.so dynamically
+  bool LoadLibrary(const std::string& library_path);
+
+  // Load model from file path
+  // Model format is auto-detected: .tflite -> TFLite, .pt/.pth -> LibTorch
+  bool LoadModel(const std::string& model_path);
+
+  // Run inference
+  // input: float array of input data
+  // input_size: size of input array
+  // output: float array to store output (must be pre-allocated)
+  // output_size: size of output array
+  InferenceStatus RunInference(const float* input, size_t input_size,
+                                float* output, size_t output_size);
+
+  // Get input tensor size
+  size_t GetInputSize() const;
+
+  // Get output tensor size
+  size_t GetOutputSize() const;
+
+  // Load and preprocess image (returns preprocessed data in NCHW format)
+  bool LoadImage(const std::string& image_path, float* output_data, size_t output_size);
+
+  // Load ImageNet class names
+  bool LoadClassNames(const std::string& json_path);
+
+  // Get class name from index
+  std::string GetClassName(int class_idx) const;
+
+ private:
+  void* lib_handle_;        // dlopen handle
+  void* api_instance_;      // CochlApi instance
+  void* class_map_;         // ImageNet class map
+
+  // Function pointers from C API
+  void* (*CochlApi_Create_)(const char*);
+  int (*CochlApi_RunInference_)(void*, const float*, size_t, float*, size_t);
+  size_t (*CochlApi_GetInputSize_)(void*);
+  size_t (*CochlApi_GetOutputSize_)(void*);
+  void (*CochlApi_Destroy_)(void*);
+  int (*CochlApi_LoadImage_)(const char*, float*, size_t);
+  void* (*CochlApi_LoadClassNames_)(const char*);
+  const char* (*CochlApi_GetClassName_)(void*, int);
+  void (*CochlApi_DestroyClassMap_)(void*);
+};
+
+}  // namespace cochl

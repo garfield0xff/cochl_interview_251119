@@ -33,9 +33,21 @@ public:
 
   /**
    * @brief Get runtime type name
-   * @return Runtime type string
+   * @note  use later  
    */
   virtual const char* GetRuntimeType() const = 0;
+
+  /**
+   * @brief Get input size
+   * @return Size of input array
+   */
+  virtual size_t GetInputSize() const = 0;
+
+  /**
+   * @brief Get output size
+   * @return Size of output array
+   */
+  virtual size_t GetOutputSize() const = 0;
 };
 
 }  // namespace runtime

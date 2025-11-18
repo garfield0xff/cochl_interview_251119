@@ -7,15 +7,8 @@
 #include <memory>
 #include <vector>
 
-// Forward declarations for LibTorch
-namespace torch {
-namespace jit {
-class Module;
-}
-namespace autograd {
-class Variable;
-}
-}  // namespace torch
+// LibTorch includes
+#include <torch/script.h>
 
 namespace cochl_api {
 namespace runtime {
@@ -32,6 +25,8 @@ public:
   bool RunInference(const float* input, size_t input_size, float* output,
                     size_t output_size) override;
   const char* GetRuntimeType() const override { return "LibTorch"; }
+  size_t GetInputSize() const override;
+  size_t GetOutputSize() const override;
 
 private:
   std::unique_ptr<torch::jit::Module> module_;

@@ -1,175 +1,261 @@
 #include "inference_engine.h"
 
-#include <dlfcn.h>  // For dynamic library loading on Linux/Mac
+#include <dlfcn.h>
 #include <iostream>
-#include <sstream>
 
-#include "kernel/system_monitor.h"
-#include "profiler.h"
-#include "thread_pool.h"
-
-namespace cochl_sdk {
+namespace cochl {
 
 InferenceEngine::InferenceEngine()
-    : api_handle_(nullptr),
-      cochl_api_instance_(nullptr),
-      create_fn_(nullptr),
-      run_inference_fn_(nullptr),
-      get_input_size_fn_(nullptr),
-      get_output_size_fn_(nullptr),
-      destroy_fn_(nullptr),
-      input_size_(0),
-      output_size_(0),
-      initialized_(false) {}
+    : lib_handle_(nullptr),
+      api_instance_(nullptr),
+      class_map_(nullptr),
+      CochlApi_Create_(nullptr),
+      CochlApi_RunInference_(nullptr),
+      CochlApi_GetInputSize_(nullptr),
+      CochlApi_GetOutputSize_(nullptr),
+      CochlApi_Destroy_(nullptr),
+      CochlApi_LoadImage_(nullptr),
+      CochlApi_LoadClassNames_(nullptr),
+      CochlApi_GetClassName_(nullptr),
+      CochlApi_DestroyClassMap_(nullptr) {}
 
 InferenceEngine::~InferenceEngine() {
-  if (cochl_api_instance_ && destroy_fn_) {
-    destroy_fn_(cochl_api_instance_);
+  // Destroy class map
+  if (class_map_ && CochlApi_DestroyClassMap_) {
+    CochlApi_DestroyClassMap_(class_map_);
+    class_map_ = nullptr;
   }
-  UnloadApiLibrary();
+
+  // Destroy API instance
+  if (api_instance_ && CochlApi_Destroy_) {
+    CochlApi_Destroy_(api_instance_);
+    api_instance_ = nullptr;
+  }
+
+  // Close library
+  if (lib_handle_) {
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+  }
 }
 
-std::unique_ptr<InferenceEngine> InferenceEngine::Create(const std::string& model_path,
-                                                           int num_threads,
-                                                           bool enable_profiler) {
-  std::cout << "[InferenceEngine] Creating engine for model: " << model_path
-            << std::endl;
+bool InferenceEngine::LoadLibrary(const std::string& library_path) {
+  if (lib_handle_) {
+    std::cerr << "[InferenceEngine] Library already loaded" << std::endl;
+    return false;
+  }
 
-  auto engine = std::unique_ptr<InferenceEngine>(new InferenceEngine());
+  // Load library with RTLD_LAZY | RTLD_LOCAL
+  lib_handle_ = dlopen(library_path.c_str(), RTLD_LAZY | RTLD_LOCAL);
+  if (!lib_handle_) {
+    std::cerr << "[InferenceEngine] Failed to load library: " << library_path << std::endl;
+    std::cerr << "[InferenceEngine] dlerror: " << dlerror() << std::endl;
+    return false;
+  }
 
-  // Load API shared library
-  if (!engine->LoadApiLibrary(model_path)) {
-    std::cerr << "[InferenceEngine] Failed to load API library" << std::endl;
-    return nullptr;
+  // Clear any existing error
+  dlerror();
+
+  // Load function pointers
+  CochlApi_Create_ = reinterpret_cast<void* (*)(const char*)>(
+      dlsym(lib_handle_, "CochlApi_Create"));
+  if (!CochlApi_Create_) {
+    std::cerr << "[InferenceEngine] Failed to load CochlApi_Create: " << dlerror() << std::endl;
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+    return false;
+  }
+
+  CochlApi_RunInference_ = reinterpret_cast<int (*)(void*, const float*, size_t, float*, size_t)>(
+      dlsym(lib_handle_, "CochlApi_RunInference"));
+  if (!CochlApi_RunInference_) {
+    std::cerr << "[InferenceEngine] Failed to load CochlApi_RunInference: " << dlerror() << std::endl;
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+    return false;
+  }
+
+  CochlApi_GetInputSize_ = reinterpret_cast<size_t (*)(void*)>(
+      dlsym(lib_handle_, "CochlApi_GetInputSize"));
+  if (!CochlApi_GetInputSize_) {
+    std::cerr << "[InferenceEngine] Failed to load CochlApi_GetInputSize: " << dlerror() << std::endl;
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+    return false;
+  }
+
+  CochlApi_GetOutputSize_ = reinterpret_cast<size_t (*)(void*)>(
+      dlsym(lib_handle_, "CochlApi_GetOutputSize"));
+  if (!CochlApi_GetOutputSize_) {
+    std::cerr << "[InferenceEngine] Failed to load CochlApi_GetOutputSize: " << dlerror() << std::endl;
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+    return false;
+  }
+
+  CochlApi_Destroy_ = reinterpret_cast<void (*)(void*)>(
+      dlsym(lib_handle_, "CochlApi_Destroy"));
+  if (!CochlApi_Destroy_) {
+    std::cerr << "[InferenceEngine] Failed to load CochlApi_Destroy: " << dlerror() << std::endl;
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+    return false;
+  }
+
+  // Load image utility functions
+  CochlApi_LoadImage_ = reinterpret_cast<int (*)(const char*, float*, size_t)>(
+      dlsym(lib_handle_, "CochlApi_LoadImage"));
+  if (!CochlApi_LoadImage_) {
+    std::cerr << "[InferenceEngine] Failed to load CochlApi_LoadImage: " << dlerror() << std::endl;
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+    return false;
+  }
+
+  CochlApi_LoadClassNames_ = reinterpret_cast<void* (*)(const char*)>(
+      dlsym(lib_handle_, "CochlApi_LoadClassNames"));
+  if (!CochlApi_LoadClassNames_) {
+    std::cerr << "[InferenceEngine] Failed to load CochlApi_LoadClassNames: " << dlerror() << std::endl;
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+    return false;
+  }
+
+  CochlApi_GetClassName_ = reinterpret_cast<const char* (*)(void*, int)>(
+      dlsym(lib_handle_, "CochlApi_GetClassName"));
+  if (!CochlApi_GetClassName_) {
+    std::cerr << "[InferenceEngine] Failed to load CochlApi_GetClassName: " << dlerror() << std::endl;
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+    return false;
+  }
+
+  CochlApi_DestroyClassMap_ = reinterpret_cast<void (*)(void*)>(
+      dlsym(lib_handle_, "CochlApi_DestroyClassMap"));
+  if (!CochlApi_DestroyClassMap_) {
+    std::cerr << "[InferenceEngine] Failed to load CochlApi_DestroyClassMap: " << dlerror() << std::endl;
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+    return false;
+  }
+
+  std::cout << "[InferenceEngine] Library loaded successfully: " << library_path << std::endl;
+  return true;
+}
+
+bool InferenceEngine::LoadModel(const std::string& model_path) {
+  if (!lib_handle_) {
+    std::cerr << "[InferenceEngine] Error: Library not loaded. Call LoadLibrary() first" << std::endl;
+    return false;
+  }
+
+  if (api_instance_) {
+    std::cerr << "[InferenceEngine] Error: Model already loaded" << std::endl;
+    return false;
+  }
+
+  if (model_path.empty()) {
+    std::cerr << "[InferenceEngine] Error: Empty model path" << std::endl;
+    return false;
   }
 
   // Create API instance
-  engine->cochl_api_instance_ = engine->create_fn_(model_path.c_str());
-  if (!engine->cochl_api_instance_) {
-    std::cerr << "[InferenceEngine] Failed to create API instance" << std::endl;
-    return nullptr;
-  }
-
-  // Get model input/output sizes
-  engine->input_size_  = engine->get_input_size_fn_(engine->cochl_api_instance_);
-  engine->output_size_ = engine->get_output_size_fn_(engine->cochl_api_instance_);
-
-  std::cout << "[InferenceEngine] Model loaded - Input: " << engine->input_size_
-            << ", Output: " << engine->output_size_ << std::endl;
-
-  // Create profiler if enabled
-  if (enable_profiler) {
-    engine->profiler_ = std::make_unique<Profiler>();
-    std::cout << "[InferenceEngine] Profiler enabled" << std::endl;
-  }
-
-  // Create thread pool
-  size_t threads = (num_threads > 0) ? num_threads : std::thread::hardware_concurrency();
-  engine->thread_pool_ = std::make_unique<cochl::ThreadPool>(threads);
-  std::cout << "[InferenceEngine] Thread pool created with " << threads << " threads"
-            << std::endl;
-
-  engine->initialized_ = true;
-  return engine;
-}
-
-bool InferenceEngine::LoadApiLibrary(const std::string& model_path) {
-#ifdef _WIN32
-  const char* lib_name = "cochl_api.dll";
-#elif __APPLE__
-  const char* lib_name = "libcochl_api.dylib";
-#else
-  const char* lib_name = "libcochl_api.so";
-#endif
-
-  std::cout << "[InferenceEngine] Loading API library: " << lib_name << std::endl;
-
-  api_handle_ = dlopen(lib_name, RTLD_LAZY);
-  if (!api_handle_) {
-    std::cerr << "[InferenceEngine] Failed to load library: " << dlerror() << std::endl;
+  api_instance_ = CochlApi_Create_(model_path.c_str());
+  if (!api_instance_) {
+    std::cerr << "[InferenceEngine] Failed to create API instance for: " << model_path << std::endl;
     return false;
   }
 
-  // Load function pointers
-  create_fn_ = reinterpret_cast<CreateFn>(dlsym(api_handle_, "CochlApi_Create"));
-  run_inference_fn_ =
-      reinterpret_cast<RunInferenceFn>(dlsym(api_handle_, "CochlApi_RunInference"));
-  get_input_size_fn_ =
-      reinterpret_cast<GetInputSizeFn>(dlsym(api_handle_, "CochlApi_GetInputSize"));
-  get_output_size_fn_ =
-      reinterpret_cast<GetOutputSizeFn>(dlsym(api_handle_, "CochlApi_GetOutputSize"));
-  destroy_fn_ = reinterpret_cast<DestroyFn>(dlsym(api_handle_, "CochlApi_Destroy"));
-
-  if (!create_fn_ || !run_inference_fn_ || !get_input_size_fn_ || !get_output_size_fn_ ||
-      !destroy_fn_) {
-    std::cerr << "[InferenceEngine] Failed to load API functions" << std::endl;
-    UnloadApiLibrary();
-    return false;
-  }
-
-  std::cout << "[InferenceEngine] API library loaded successfully" << std::endl;
+  std::cout << "[InferenceEngine] Model loaded successfully: " << model_path << std::endl;
+  std::cout << "[InferenceEngine] Input size: " << GetInputSize() << std::endl;
+  std::cout << "[InferenceEngine] Output size: " << GetOutputSize() << std::endl;
   return true;
 }
 
-void InferenceEngine::UnloadApiLibrary() {
-  if (api_handle_) {
-    dlclose(api_handle_);
-    api_handle_ = nullptr;
+InferenceStatus InferenceEngine::RunInference(const float* input, size_t input_size,
+                                               float* output, size_t output_size) {
+  if (!api_instance_) {
+    std::cerr << "[InferenceEngine] Error: Model not loaded" << std::endl;
+    return InferenceStatus::ERROR_NOT_INITIALIZED;
   }
+
+  if (!input || input_size == 0) {
+    std::cerr << "[InferenceEngine] Error: Invalid input" << std::endl;
+    return InferenceStatus::ERROR_INVALID_INPUT;
+  }
+
+  if (!output || output_size == 0) {
+    std::cerr << "[InferenceEngine] Error: Invalid output buffer" << std::endl;
+    return InferenceStatus::ERROR_INVALID_INPUT;
+  }
+
+  // Run inference via C API
+  int result = CochlApi_RunInference_(api_instance_, input, input_size, output, output_size);
+
+  if (result == 0) {
+    std::cerr << "[InferenceEngine] Inference failed" << std::endl;
+    return InferenceStatus::ERROR_INFERENCE_FAILED;
+  }
+
+  return InferenceStatus::OK;
 }
 
-bool InferenceEngine::RunInference(const float* input, size_t input_size, float* output,
-                                    size_t output_size) {
-  if (!initialized_) {
-    std::cerr << "[InferenceEngine] Engine not initialized" << std::endl;
+size_t InferenceEngine::GetInputSize() const {
+  if (!api_instance_) {
+    return 0;
+  }
+  return CochlApi_GetInputSize_(api_instance_);
+}
+
+size_t InferenceEngine::GetOutputSize() const {
+  if (!api_instance_) {
+    return 0;
+  }
+  return CochlApi_GetOutputSize_(api_instance_);
+}
+
+bool InferenceEngine::LoadImage(const std::string& image_path, float* output_data, size_t output_size) {
+  if (!lib_handle_) {
+    std::cerr << "[InferenceEngine] Error: Library not loaded" << std::endl;
     return false;
   }
 
-  if (profiler_) {
-    profiler_->StartTiming("inference");
-  }
-
-  // Run inference through API library
-  bool success = run_inference_fn_(cochl_api_instance_, input, input_size, output,
-                                    output_size);
-
-  if (profiler_) {
-    profiler_->StopTiming("inference");
-    // Record system metrics
-    cochl::kernel::SystemMonitor::RecordLatency(profiler_->GetAverageLatency());
-  }
-
-  return success;
+  int result = CochlApi_LoadImage_(image_path.c_str(), output_data, output_size);
+  return result == 1;
 }
 
-bool InferenceEngine::RunInferenceAsync(const float* input, size_t input_size,
-                                        float* output, size_t output_size,
-                                        std::function<void(bool)> callback) {
-  if (!initialized_) {
-    std::cerr << "[InferenceEngine] Engine not initialized" << std::endl;
+bool InferenceEngine::LoadClassNames(const std::string& json_path) {
+  if (!lib_handle_) {
+    std::cerr << "[InferenceEngine] Error: Library not loaded" << std::endl;
     return false;
   }
 
-  // Submit task to thread pool
-  thread_pool_->Submit([this, input, input_size, output, output_size, callback]() {
-    bool success = RunInference(input, input_size, output, output_size);
-    if (callback) {
-      callback(success);
-    }
-  });
+  if (class_map_) {
+    std::cerr << "[InferenceEngine] Warning: Class names already loaded" << std::endl;
+    return true;
+  }
 
+  class_map_ = CochlApi_LoadClassNames_(json_path.c_str());
+  if (!class_map_) {
+    std::cerr << "[InferenceEngine] Failed to load class names from: " << json_path << std::endl;
+    return false;
+  }
+
+  std::cout << "[InferenceEngine] Class names loaded successfully" << std::endl;
   return true;
 }
 
-std::string InferenceEngine::GetProfilingStats() const {
-  if (!profiler_) {
-    return "Profiler not enabled";
+std::string InferenceEngine::GetClassName(int class_idx) const {
+  if (!class_map_) {
+    return "Unknown (class map not loaded)";
   }
-  return profiler_->GetStats();
+
+  const char* name = CochlApi_GetClassName_(class_map_, class_idx);
+  if (name) {
+    return std::string(name);
+  }
+
+  return "Unknown";
 }
 
-std::string InferenceEngine::GetResourceUsage() const {
-  return cochl::kernel::SystemMonitor::GetSystemStatus();
-}
-
-}  // namespace cochl_sdk
+}  // namespace cochl

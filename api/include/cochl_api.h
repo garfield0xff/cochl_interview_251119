@@ -15,11 +15,14 @@ class CochlApi {
   // load_model
   static std::unique_ptr<CochlApi> Create(const std::string& model_path);
 
+  // Destructor must be declared here and defined in .cpp (for unique_ptr with forward declaration)
+  ~CochlApi();
+
   bool RunInference(const float* input, size_t input_size, float* output,
                     size_t output_size) const;
 
-  size_t GetInputSize() const { return 22050; }
-  size_t GetOutputSize() const { return 10; }
+  size_t GetInputSize() const;
+  size_t GetOutputSize() const;
 
  private:
   CochlApi();

@@ -52,6 +52,36 @@ size_t CochlApi_GetOutputSize(void* instance);
  */
 void CochlApi_Destroy(void* instance);
 
+/**
+ * @brief Load and preprocess image for ResNet50
+ * @param image_path Path to image file
+ * @param output_data Pre-allocated buffer for output (should be 150528 floats for 224x224x3)
+ * @param output_size Size of output buffer
+ * @return 1 if successful, 0 otherwise
+ */
+int CochlApi_LoadImage(const char* image_path, float* output_data, size_t output_size);
+
+/**
+ * @brief Load ImageNet class names from JSON file
+ * @param json_path Path to imagenet_class_index.json
+ * @return Opaque pointer to class map, NULL on failure
+ */
+void* CochlApi_LoadClassNames(const char* json_path);
+
+/**
+ * @brief Get class name from index
+ * @param class_map Class map instance
+ * @param class_idx Class index
+ * @return Class name string (do not free), NULL if not found
+ */
+const char* CochlApi_GetClassName(void* class_map, int class_idx);
+
+/**
+ * @brief Destroy class map
+ * @param class_map Class map instance
+ */
+void CochlApi_DestroyClassMap(void* class_map);
+
 #ifdef __cplusplus
 }
 #endif

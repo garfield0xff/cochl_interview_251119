@@ -15,17 +15,16 @@ namespace runtime {
  * Supported formats:
  * - .tflite -> TensorFlow Lite runtime
  * - .pt, .pth -> LibTorch runtime
- * - .so, .dll -> TVM runtime (future)
+ * - .bin -> Custom thread pool runtime (mock)
  */
 class RuntimeManager {
 public:
-  /**
-   * @brief Runtime type enumeration
-   */
-  enum class RuntimeType {
+
+  enum class InferenceEngine {
     UNKNOWN,
-    TFLITE,   // .tflite
-    LIBTORCH  // .pt, .pth
+    TFLITE,
+    LIBTORCH,
+    CUSTOM
   };
 
   /**
@@ -35,43 +34,38 @@ public:
    */
   static std::unique_ptr<RuntimeManager> Create(const std::string& model_path);
 
-  /**
-   * @brief Destructor
-   */
   ~RuntimeManager();
 
   /**
    * @brief Run inference using the loaded runtime
-   * @param input Input data array
-   * @param input_size Size of input array
-   * @param output Output data array
-   * @param output_size Size of output array
-   * @return true if successful, false otherwise
    */
   bool RunInference(const float* input, size_t input_size, float* output,
                     size_t output_size) const;
 
   /**
-   * @brief Get current runtime type
-   * @return RuntimeType enum value
+   * @brief Get current inference engine type
    */
-  RuntimeType GetRuntimeType() const { return runtime_type_; }
+  InferenceEngine GetInferenceEngineType() const { return runtime_type_; }
 
   /**
-   * @brief Get runtime type name string
-   * @return Runtime type name
+   * @brief Get input size
    */
-  const char* GetRuntimeTypeName() const;
+  size_t GetInputSize() const;
+
+  /**
+   * @brief Get output size
+   */
+  size_t GetOutputSize() const;
 
 private:
   RuntimeManager();
 
   /**
-   * @brief Detect runtime type from file extension
+   * @brief Detect inference engine from file extension
    * @param model_path Model file path
-   * @return Detected RuntimeType
+   * @return Detected InferenceEngine
    */
-  static RuntimeType DetectRuntimeType(const std::string& model_path);
+  static InferenceEngine DetectInferenceEngine(const std::string& model_path);
 
   /**
    * @brief Load model using appropriate runtime
@@ -79,10 +73,11 @@ private:
    * @param type Runtime type to use
    * @return true if successful, false otherwise
    */
-  bool LoadModel(const std::string& model_path, RuntimeType type);
+  bool LoadModel(const std::string& model_path, InferenceEngine type);
 
   std::unique_ptr<IRuntime> runtime_;  // Holds the actual runtime instance
-  RuntimeType runtime_type_;
+  InferenceEngine runtime_type_;
+  bool initialized_;
 };
 
 }  // namespace runtime

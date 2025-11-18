@@ -22,7 +22,6 @@ std::unique_ptr<CochlApi> CochlApi::Create(const std::string& model_path) {
 
   auto api = std::unique_ptr<CochlApi>(new CochlApi());
 
-  // Create runtime manager (automatically selects runtime based on file extension)
   api->runtime_manager_ = cochl_api::runtime::RuntimeManager::Create(model_path);
 
   if (!api->runtime_manager_) {
@@ -30,13 +29,11 @@ std::unique_ptr<CochlApi> CochlApi::Create(const std::string& model_path) {
     return nullptr;
   }
 
-  std::cout << "[CochlApi] Model loaded with "
-            << api->runtime_manager_->GetRuntimeTypeName() << std::endl;
-
   return api;
 }
 
 CochlApi::CochlApi() = default;
+CochlApi::~CochlApi() = default;
 
 bool CochlApi::RunInference(const float* input, size_t input_size, float* output,
                             size_t output_size) const {
@@ -50,7 +47,6 @@ bool CochlApi::RunInference(const float* input, size_t input_size, float* output
     return false;
   }
 
-  // Validate input/output sizes
   if (input_size == 0 || input_size > GetInputSize()) {
     std::cerr << "[CochlApi] Invalid input size: " << input_size << std::endl;
     return false;
@@ -61,7 +57,23 @@ bool CochlApi::RunInference(const float* input, size_t input_size, float* output
     return false;
   }
 
-  // Run inference using the selected runtime
   return runtime_manager_->RunInference(input, input_size, output, output_size);
 }
+
+size_t CochlApi::GetInputSize() const {
+  if (!runtime_manager_) {
+    std::cerr << "[CochlApi] Runtime manager not initialized" << std::endl;
+    return 0;
+  }
+  return runtime_manager_->GetInputSize();
+}
+
+size_t CochlApi::GetOutputSize() const {
+  if (!runtime_manager_) {
+    std::cerr << "[CochlApi] Runtime manager not initialized" << std::endl;
+    return 0;
+  }
+  return runtime_manager_->GetOutputSize();
+}
+
 }  // namespace external_api

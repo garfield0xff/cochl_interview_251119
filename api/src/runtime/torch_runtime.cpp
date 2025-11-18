@@ -43,8 +43,16 @@ bool TorchRuntime::RunInference(const float* input, size_t input_size, float* ou
   }
 
   try {
-    // Create input tensor
-    std::vector<int64_t> input_shape = {1, static_cast<int64_t>(input_size)};
+    // Create input tensor (for ResNet50: [1, 3, 224, 224])
+    // Assuming input_size = 3 * 224 * 224 = 150528
+    std::vector<int64_t> input_shape;
+    if (input_size == 150528) {  // ResNet50 input
+      input_shape = {1, 3, 224, 224};
+    } else {
+      // Fallback to 1D tensor
+      input_shape = {1, static_cast<int64_t>(input_size)};
+    }
+
     auto options = torch::TensorOptions().dtype(torch::kFloat32);
     torch::Tensor input_tensor =
         torch::from_blob(const_cast<float*>(input), input_shape, options).clone();
@@ -56,12 +64,11 @@ bool TorchRuntime::RunInference(const float* input, size_t input_size, float* ou
     // Execute the model
     torch::Tensor output_tensor = module_->forward(inputs).toTensor();
 
+    // Get output shape and flatten
+    output_tensor = output_tensor.flatten();
+
     // Verify output size
-    auto output_shape = output_tensor.sizes();
-    size_t total_elements = 1;
-    for (auto dim : output_shape) {
-      total_elements *= dim;
-    }
+    size_t total_elements = output_tensor.numel();
 
     if (total_elements != output_size) {
       std::cerr << "[TorchRuntime] Output size mismatch. Expected: " << output_size
@@ -70,13 +77,7 @@ bool TorchRuntime::RunInference(const float* input, size_t input_size, float* ou
     }
 
     // Copy output data
-    auto output_accessor = output_tensor.accessor<float, 2>();
-    size_t idx = 0;
-    for (int i = 0; i < output_accessor.size(0); ++i) {
-      for (int j = 0; j < output_accessor.size(1); ++j) {
-        output[idx++] = output_accessor[i][j];
-      }
-    }
+    std::memcpy(output, output_tensor.data_ptr<float>(), output_size * sizeof(float));
 
     return true;
 
@@ -84,6 +85,16 @@ bool TorchRuntime::RunInference(const float* input, size_t input_size, float* ou
     std::cerr << "[TorchRuntime] Inference error: " << e.what() << std::endl;
     return false;
   }
+}
+
+size_t TorchRuntime::GetInputSize() const {
+  // For ResNet50: 1 * 3 * 224 * 224 = 150528
+  return 150528;
+}
+
+size_t TorchRuntime::GetOutputSize() const {
+  // For ResNet50: 1000 classes
+  return 1000;
 }
 
 }  // namespace runtime

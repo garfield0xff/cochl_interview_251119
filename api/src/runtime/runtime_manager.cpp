@@ -11,10 +11,14 @@
 #include "runtime/torch_runtime.h"
 #endif
 
+#ifdef USE_CUSTOM
+#include "runtime/custom_runtime.h"
+#endif
+
 namespace cochl_api {
 namespace runtime {
 
-RuntimeManager::RuntimeManager() : runtime_type_(RuntimeType::UNKNOWN) {}
+RuntimeManager::RuntimeManager() : runtime_type_(InferenceEngine::UNKNOWN), initialized_(false) {}
 
 RuntimeManager::~RuntimeManager() = default;
 
@@ -27,9 +31,9 @@ std::unique_ptr<RuntimeManager> RuntimeManager::Create(const std::string& model_
   auto manager = std::unique_ptr<RuntimeManager>(new RuntimeManager());
 
   // Detect runtime type from file extension
-  RuntimeType type = DetectRuntimeType(model_path);
+  InferenceEngine type = DetectInferenceEngine(model_path);
 
-  if (type == RuntimeType::UNKNOWN) {
+  if (type == InferenceEngine::UNKNOWN) {
     std::cerr << "[RuntimeManager] Error: Unsupported model format: " << model_path
               << std::endl;
     return nullptr;
@@ -42,18 +46,32 @@ std::unique_ptr<RuntimeManager> RuntimeManager::Create(const std::string& model_
     return nullptr;
   }
 
+  const char* runtime_name = "Unknown";
+  switch (manager->runtime_type_) {
+    case InferenceEngine::TFLITE:
+      runtime_name = "TensorFlow Lite";
+      break;
+    case InferenceEngine::LIBTORCH:
+      runtime_name = "LibTorch";
+      break;
+    case InferenceEngine::CUSTOM:
+      runtime_name = "Custom Backend (Thread Pool)";
+      break;
+    default:
+      break;
+  }
   std::cout << "[RuntimeManager] Successfully loaded model with "
-            << manager->GetRuntimeTypeName() << " runtime" << std::endl;
+            << runtime_name << " runtime" << std::endl;
 
   return manager;
 }
 
-RuntimeManager::RuntimeType RuntimeManager::DetectRuntimeType(
+RuntimeManager::InferenceEngine RuntimeManager::DetectInferenceEngine(
     const std::string& model_path) {
-  // Find last dot for extension
+
   size_t dot_pos = model_path.find_last_of('.');
   if (dot_pos == std::string::npos) {
-    return RuntimeType::UNKNOWN;
+    return InferenceEngine::UNKNOWN;
   }
 
   std::string extension = model_path.substr(dot_pos + 1);
@@ -64,45 +82,71 @@ RuntimeManager::RuntimeType RuntimeManager::DetectRuntimeType(
   // Match extension to runtime
   if (extension == "tflite") {
 #ifdef USE_TFLITE
-    return RuntimeType::TFLITE;
+    return InferenceEngine::TFLITE;
 #else
     std::cerr << "[RuntimeManager] TFLite runtime not compiled in" << std::endl;
-    return RuntimeType::UNKNOWN;
+    return InferenceEngine::UNKNOWN;
 #endif
   } else if (extension == "pt" || extension == "pth") {
 #ifdef USE_LIBTORCH
-    return RuntimeType::LIBTORCH;
+    return InferenceEngine::LIBTORCH;
 #else
     std::cerr << "[RuntimeManager] LibTorch runtime not compiled in" << std::endl;
-    return RuntimeType::UNKNOWN;
+    return InferenceEngine::UNKNOWN;
+#endif
+  } else if (extension == "bin") {
+#ifdef USE_CUSTOM
+    return InferenceEngine::CUSTOM;
+#else
+    std::cerr << "[RuntimeManager] Custom runtime not compiled in" << std::endl;
+    return InferenceEngine::UNKNOWN;
 #endif
   }
 
-  return RuntimeType::UNKNOWN;
+  return InferenceEngine::UNKNOWN;
 }
 
-bool RuntimeManager::LoadModel(const std::string& model_path, RuntimeType type) {
+bool RuntimeManager::LoadModel(const std::string& model_path, InferenceEngine type) {
+  if (initialized_) {
+    std::cerr << "[RuntimeManager] Error: Runtime already initialized" << std::endl;
+    return false;
+  }
+
   runtime_type_ = type;
 
   switch (type) {
 #ifdef USE_TFLITE
-    case RuntimeType::TFLITE: {
+    case InferenceEngine::TFLITE: {
       auto tf_runtime = std::make_unique<TFRuntime>();
       if (!tf_runtime->LoadModel(model_path.c_str())) {
         return false;
       }
       runtime_ = std::move(tf_runtime);
+      initialized_ = true;
       return true;
     }
 #endif
 
 #ifdef USE_LIBTORCH
-    case RuntimeType::LIBTORCH: {
+    case InferenceEngine::LIBTORCH: {
       auto torch_runtime = std::make_unique<TorchRuntime>();
       if (!torch_runtime->LoadModel(model_path.c_str())) {
         return false;
       }
       runtime_ = std::move(torch_runtime);
+      initialized_ = true;
+      return true;
+    }
+#endif
+
+#ifdef USE_CUSTOM
+    case InferenceEngine::CUSTOM: {
+      auto custom_runtime = std::make_unique<CustomRuntime>();
+      if (!custom_runtime->LoadModel(model_path.c_str())) {
+        return false;
+      }
+      runtime_ = std::move(custom_runtime);
+      initialized_ = true;
       return true;
     }
 #endif
@@ -123,19 +167,22 @@ bool RuntimeManager::RunInference(const float* input, size_t input_size, float* 
   return runtime_->RunInference(input, input_size, output, output_size);
 }
 
-const char* RuntimeManager::GetRuntimeTypeName() const {
-  if (runtime_) {
-    return runtime_->GetRuntimeType();
+size_t RuntimeManager::GetInputSize() const {
+  if (!runtime_) {
+    std::cerr << "[RuntimeManager] No runtime loaded" << std::endl;
+    return 0;
   }
 
-  switch (runtime_type_) {
-    case RuntimeType::TFLITE:
-      return "TensorFlow Lite (not loaded)";
-    case RuntimeType::LIBTORCH:
-      return "LibTorch (not loaded)";
-    default:
-      return "Unknown";
+  return runtime_->GetInputSize();
+}
+
+size_t RuntimeManager::GetOutputSize() const {
+  if (!runtime_) {
+    std::cerr << "[RuntimeManager] No runtime loaded" << std::endl;
+    return 0;
   }
+
+  return runtime_->GetOutputSize();
 }
 
 }  // namespace runtime

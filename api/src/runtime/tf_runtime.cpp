@@ -102,6 +102,38 @@ bool TFRuntime::RunInference(const float* input, size_t input_size, float* outpu
   return true;
 }
 
+size_t TFRuntime::GetInputSize() const {
+  if (!initialized_ || !interpreter_) {
+    return 0;
+  }
+
+  int input_idx = interpreter_->inputs()[0];
+  TfLiteTensor* input_tensor = interpreter_->tensor(input_idx);
+
+  size_t input_size = 1;
+  for (int i = 0; i < input_tensor->dims->size; ++i) {
+    input_size *= input_tensor->dims->data[i];
+  }
+
+  return input_size;
+}
+
+size_t TFRuntime::GetOutputSize() const {
+  if (!initialized_ || !interpreter_) {
+    return 0;
+  }
+
+  int output_idx = interpreter_->outputs()[0];
+  const TfLiteTensor* output_tensor = interpreter_->tensor(output_idx);
+
+  size_t output_size = 1;
+  for (int i = 0; i < output_tensor->dims->size; ++i) {
+    output_size *= output_tensor->dims->data[i];
+  }
+
+  return output_size;
+}
+
 }  // namespace runtime
 }  // namespace cochl_api
 
