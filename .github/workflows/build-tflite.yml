@@ -1,0 +1,294 @@
+name: Build TensorFlow Lite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  TENSORFLOW_VERSION: "2.15.0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-tflite-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build-tflite-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Cache TFLite
+      id: cache-tflite
+      uses: actions/cache@v4
+      with:
+        path: |
+          tensorflow
+          tflite-build
+        key: tflite-windows-v${{ env.TENSORFLOW_VERSION }}
+
+    - name: Setup MSVC
+      if: steps.cache-tflite.outputs.cache-hit != 'true'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Install dependencies
+      if: steps.cache-tflite.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        choco install cmake ninja -y
+
+    - name: Download TensorFlow source
+      if: steps.cache-tflite.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        git clone --depth 1 --branch v${{ env.TENSORFLOW_VERSION }} https://github.com/tensorflow/tensorflow.git
+
+    - name: Build TFLite
+      if: steps.cache-tflite.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        mkdir tflite-build
+        cd tflite-build
+        cmake -G Ninja `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DTFLITE_ENABLE_XNNPACK=ON `
+          ../tensorflow/tensorflow/lite
+        cmake --build . -j $env:NUMBER_OF_PROCESSORS
+
+    - name: Package TFLite
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path tflite-dist/lib
+        New-Item -ItemType Directory -Force -Path tflite-dist/include
+        Copy-Item -Recurse tensorflow/tensorflow/lite tflite-dist/include/
+        Copy-Item tflite-build/*.lib tflite-dist/lib/ -ErrorAction SilentlyContinue
+        Copy-Item tflite-build/*.dll tflite-dist/lib/ -ErrorAction SilentlyContinue
+        Compress-Archive -Path tflite-dist -DestinationPath tflite-windows-x64.zip
+
+    - name: Upload TFLite Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tflite-windows-x64
+        path: tflite-windows-x64.zip
+        retention-days: 30
+
+    - name: Upload to Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: tflite-v${{ env.TENSORFLOW_VERSION }}
+        name: TensorFlow Lite v${{ env.TENSORFLOW_VERSION }} Binary
+        files: tflite-windows-x64.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-tflite-macos:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Cache TFLite
+      id: cache-tflite
+      uses: actions/cache@v4
+      with:
+        path: |
+          tensorflow
+          tflite-build
+        key: tflite-macos-v${{ env.TENSORFLOW_VERSION }}
+
+    - name: Install dependencies
+      if: steps.cache-tflite.outputs.cache-hit != 'true'
+      run: |
+        brew install cmake ninja
+
+    - name: Download TensorFlow source
+      if: steps.cache-tflite.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth 1 --branch v${{ env.TENSORFLOW_VERSION }} https://github.com/tensorflow/tensorflow.git
+
+    - name: Build TFLite
+      if: steps.cache-tflite.outputs.cache-hit != 'true'
+      run: |
+        mkdir tflite-build
+        cd tflite-build
+        cmake -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DTFLITE_ENABLE_XNNPACK=ON \
+          ../tensorflow/tensorflow/lite
+        cmake --build . -j $(sysctl -n hw.ncpu)
+
+    - name: Package TFLite
+      run: |
+        mkdir -p tflite-dist/lib tflite-dist/include
+        cp -r tensorflow/tensorflow/lite tflite-dist/include/
+        cp tflite-build/*.a tflite-dist/lib/ 2>/dev/null || true
+        cp tflite-build/*.dylib tflite-dist/lib/ 2>/dev/null || true
+        tar -czf tflite-macos-universal.tar.gz tflite-dist
+
+    - name: Upload TFLite macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tflite-macos-universal
+        path: tflite-macos-universal.tar.gz
+        retention-days: 30
+
+    - name: Upload to Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: tflite-v${{ env.TENSORFLOW_VERSION }}
+        name: TensorFlow Lite v${{ env.TENSORFLOW_VERSION }} Binary
+        files: tflite-macos-universal.tar.gz
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-tflite-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Cache TFLite
+      id: cache-tflite
+      uses: actions/cache@v4
+      with:
+        path: |
+          tensorflow
+          tflite-build
+        key: tflite-linux-v${{ env.TENSORFLOW_VERSION }}
+
+    - name: Install dependencies
+      if: steps.cache-tflite.outputs.cache-hit != 'true'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build
+
+    - name: Download TensorFlow source
+      if: steps.cache-tflite.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth 1 --branch v${{ env.TENSORFLOW_VERSION }} https://github.com/tensorflow/tensorflow.git
+
+    - name: Build TFLite
+      if: steps.cache-tflite.outputs.cache-hit != 'true'
+      run: |
+        mkdir tflite-build
+        cd tflite-build
+        cmake -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DTFLITE_ENABLE_XNNPACK=ON \
+          ../tensorflow/tensorflow/lite
+        cmake --build . -j $(nproc)
+
+    - name: Package TFLite
+      run: |
+        mkdir -p tflite-dist/lib tflite-dist/include
+        cp -r tensorflow/tensorflow/lite tflite-dist/include/
+        cp tflite-build/*.a tflite-dist/lib/ 2>/dev/null || true
+        cp tflite-build/*.so tflite-dist/lib/ 2>/dev/null || true
+        tar -czf tflite-linux-x64.tar.gz tflite-dist
+
+    - name: Upload TFLite Linux artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tflite-linux-x64
+        path: tflite-linux-x64.tar.gz
+        retention-days: 30
+
+    - name: Upload to Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: tflite-v${{ env.TENSORFLOW_VERSION }}
+        name: TensorFlow Lite v${{ env.TENSORFLOW_VERSION }} Binary
+        files: tflite-linux-x64.tar.gz
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-tflite-linux-arm64:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+
+    - name: Cache TFLite
+      id: cache-tflite
+      uses: actions/cache@v4
+      with:
+        path: |
+          tensorflow
+          tflite-build
+        key: tflite-linux-arm64-v${{ env.TENSORFLOW_VERSION }}
+
+    - name: Build TFLite for ARM64
+      if: steps.cache-tflite.outputs.cache-hit != 'true'
+      uses: uraimo/run-on-arch-action@v2
+      with:
+        arch: aarch64
+        distro: ubuntu22.04
+        githubToken: ${{ github.token }}
+        dockerRunArgs: |
+          --volume "${PWD}:/workspace"
+        install: |
+          apt-get update -q -y
+          apt-get install -q -y git build-essential cmake ninja-build
+        run: |
+          cd /workspace
+          if [ ! -d "tensorflow" ]; then
+            git clone --depth 1 --branch v${{ env.TENSORFLOW_VERSION }} https://github.com/tensorflow/tensorflow.git
+          fi
+          mkdir -p tflite-build
+          cd tflite-build
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTFLITE_ENABLE_XNNPACK=ON \
+            ../tensorflow/tensorflow/lite
+          cmake --build . -j $(nproc)
+
+    - name: Package TFLite
+      run: |
+        mkdir -p tflite-dist/lib tflite-dist/include
+        cp -r tensorflow/tensorflow/lite tflite-dist/include/
+        cp tflite-build/*.a tflite-dist/lib/ 2>/dev/null || true
+        cp tflite-build/*.so tflite-dist/lib/ 2>/dev/null || true
+        tar -czf tflite-linux-arm64.tar.gz tflite-dist
+
+    - name: Upload TFLite Linux ARM64 artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tflite-linux-arm64
+        path: tflite-linux-arm64.tar.gz
+        retention-days: 30
+
+    - name: Upload to Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: tflite-v${{ env.TENSORFLOW_VERSION }}
+        name: TensorFlow Lite v${{ env.TENSORFLOW_VERSION }} Binary
+        files: tflite-linux-arm64.tar.gz
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
