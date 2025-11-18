@@ -35,6 +35,9 @@
 ### 1. Enter Docker Environment
 
 ```bash
+cd docker
+docker build --platform linux/arm64 -f Dockerfile.linux-arm64 -t chocl-edge-sdk::arm64-latest ..
+cd ..
 ./script/run-arm64.sh
 ```
 
@@ -92,18 +95,3 @@ touch /workspace/models/model.bin
     /workspace/api/test/imagenet_class_index.json
 ```
 
-## Backend Selection
-
-The system automatically selects the appropriate runtime backend based on file extension:
-
-| Extension | Backend | Description |
-|-----------|---------|-------------|
-| `.tflite` | TensorFlow Lite | Production inference with TFLite |
-| `.pt`, `.pth` | LibTorch | Production inference with PyTorch |
-| `.bin` | Custom (Thread Pool) | Mock inference with parallel computation |
-
-The Custom backend demonstrates:
-- Thread pool implementation with configurable worker threads (default: 4)
-- Parallel computation using `ParallelFor` for data distribution
-- Mock inference compatible with ResNet50 dimensions (input: 150528, output: 1000)
-- Useful for testing SDK integration without heavy ML frameworks
