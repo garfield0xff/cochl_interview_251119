@@ -1,33 +1,65 @@
 # Cochl Interview
+
 ## Project Structure
 
 ```
 .
-├── api/                   # Core inference API (C/C++)
+├── api/                        # Core inference API 
 │   ├── include/
-│   │   ├── cochl_api_c.h  # C API header
-│   │   ├── runtime/       # Runtime manager
-│   │   └── utils/         # Image utilities (stb_image, 
+│   │   ├── cochl_api.h         # C++ API
+│   │   ├── cochl_api_c.h       # C API 
+│   │   ├── runtime/
+│   │   │   ├── i_runtime.h     # Runtime interface
+│   │   │   ├── runtime_manager.h
+│   │   │   ├── tf_runtime.h    
+│   │   │   ├── torch_runtime.h 
+│   │   │   └── custom_runtime.h 
+│   │   ├── utils/
+│   │   │   ├── util_img.h      # Image preprocessing
+│   │   │   └── stb_image.h     # STB image library
+│   │   └── optimizer/          # TVM optimizer
 │   ├── src/
-│   │   ├── cochl_api_c.cpp
-│   │   └── runtime/       # TFLite/LibTorch implementations
-│   └── test/              # Unit tests
-├── sdk/                    # SDK wrapping the API
+│   │   ├── cochl_api.cpp
+│   │   ├── cochl_api_c.cpp     # C API implementation
+│   │   └── runtime/            # Runtime implementations
+│   ├── test/
+│   │   ├── runtime_test.cpp
+│.  │
+├── sdk/                        # SDK (Bridge Layer)
 │   ├── include/
-│   │   └── inference_engine.h
+│   │   ├── inference_engine.h  # Main SDK interface
+│   │   └── profiler/
+│   │       └── system_monitor.h # Memory/Latency monitoring
 │   ├── src/
-│   │   └── inference_engine.cpp
-│   └── third_party/
-│       └── cochl_api/     # Compiled API library
-├── main/                   # Test application
-│   ├── main.cpp
+│   │   ├── inference_engine.cpp # dlopen-based loader
+│   │   └── profiler/
+│   │       └── system_monitor.cpp
+│
+├── main/                       
+│   ├── main.cpp                
+│   ├── imagenet_class_index.json
 │   └── CMakeLists.txt
-├── models/                 # Model files
-│   ├── resnet50.tflite
-│   └── resnet50.pt
-└── third_party/           # Dependencies
-    ├── tflite-arm64/
-    └── libtorch-arm64/
+│
+├── models/                     
+│   ├── resnet50.tflite         
+│   ├── resnet50.pt             
+│   └── model.bin               
+│
+├── third_party/                # Pre-built libraries
+│   ├── libtorch-arm64/         
+│   ├── tflite-arm64/           
+│   ├── tvm-arm64/              
+│   └── pybind11/               
+│
+├── docker/                     # Docker environments
+│   ├── Dockerfile.linux-arm64  # ARM64 
+│   └── Dockerfile.linux-amd64  # x86_64
+│
+├── script/                     
+│   ├── run-arm64.sh            # Run ARM64 Docker
+│   ├── run-amd64.sh            # Run AMD64 Docker
+│   ├── download-releases-arm64.sh
+│   └── package-libraries.sh
 ```
 
 ## Build & Run Pipeline (ARM64)
