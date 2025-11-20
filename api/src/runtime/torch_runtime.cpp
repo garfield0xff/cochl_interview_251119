@@ -98,7 +98,7 @@ bool TorchRuntime::loadModel(const char* model_path) {
 }
 
 bool TorchRuntime::runInference(const float* input, const std::vector<int64_t>& input_shape,
-                                 float* output, TensorLayout layout) {
+                                 float* output) {
   if (!initialized_) {
     std::cerr << "[TorchRuntime] Runtime not initialized" << std::endl;
     return false;
@@ -116,30 +116,9 @@ bool TorchRuntime::runInference(const float* input, const std::vector<int64_t>& 
 
   try {
     auto options = torch::TensorOptions().dtype(torch::kFloat32);
-    torch::Tensor input_tensor;
 
-    // Handle different layouts
-    if (layout == TensorLayout::NCHW) {
-      // Direct use of provided NCHW shape
-      input_tensor = torch::from_blob(const_cast<float*>(input), input_shape, options).clone();
-    }
-    else if (layout == TensorLayout::NHWC) {
-      // NHWC -> NCHW conversion
-      if (input_shape.size() == 4) {
-        // Assume input is NHWC: [N, H, W, C]
-        std::vector<int64_t> nhwc_shape = {input_shape[0], input_shape[2], input_shape[3], input_shape[1]};
-        auto nhwc_tensor = torch::from_blob(const_cast<float*>(input), nhwc_shape, options).clone();
-        // Permute NHWC -> NCHW: [N, H, W, C] -> [N, C, H, W]
-        input_tensor = nhwc_tensor.permute({0, 3, 1, 2}).contiguous();
-      } else {
-        std::cerr << "[TorchRuntime] NHWC layout requires 4D tensor" << std::endl;
-        return false;
-      }
-    }
-    else {
-      std::cerr << "[TorchRuntime] Unsupported tensor layout" << std::endl;
-      return false;
-    }
+    // Input is always in NCHW format (preprocessing handles conversion)
+    torch::Tensor input_tensor = torch::from_blob(const_cast<float*>(input), input_shape, options).clone();
 
     // Prepare inputs for the model
     std::vector<torch::jit::IValue> inputs;

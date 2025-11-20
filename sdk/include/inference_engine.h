@@ -12,34 +12,25 @@
 
 namespace cochl {
 
-/**
- * @brief Tensor data layout
- */
-enum class TensorLayout {
-  NCHW = 0,  // Batch, Channel, Height, Width (PyTorch, Caffe)
-  NHWC = 1   // Batch, Height, Width, Channel (TensorFlow)
-};
-
 class InferenceEngine {
  public:
   InferenceEngine();
   ~InferenceEngine();
 
   // Load libcochl_api.so dynamically
-  bool loadLibrary(const std::string& library_path);
+  bool loadLib(const std::string& library_path);
 
   // Create API instance and load model from file path
   // Model format is auto-detected: .tflite -> TFLite, .pt/.pth -> LibTorch
   bool create(const std::string& model_path);
 
   // Run inference
-  // input: float array of input data
-  // input_shape: shape of input tensor (e.g., {1, 3, 224, 224})
+  // input: float array of input data (must be in NCHW format)
+  // input_shape: shape of input tensor in NCHW format (e.g., {1, 3, 224, 224})
   // output: float array to store output (must be pre-allocated with getOutputSize())
-  // layout: tensor layout (NCHW or NHWC)
   // Returns true on success, false on error
   bool runInference(const float* input, const std::vector<int64_t>& input_shape,
-                    float* output, TensorLayout layout = TensorLayout::NCHW);
+                    float* output);
 
   // Get input tensor size
   size_t getInputSize() const;

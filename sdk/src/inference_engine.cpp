@@ -25,13 +25,13 @@ InferenceEngine::~InferenceEngine() {
   // Library is automatically closed by CochlApiLoader destructor
 }
 
-bool InferenceEngine::loadLibrary(const std::string& library_path) {
+bool InferenceEngine::loadLib(const std::string& library_path) {
   return api_loader_.load(library_path);
 }
 
 bool InferenceEngine::create(const std::string& model_path) {
   if (!api_loader_.isLoaded()) {
-    error::printError(error::SdkError::API_NOT_INITIALIZED, "Library not loaded. Call loadLibrary() first");
+    error::printError(error::SdkError::API_NOT_INITIALIZED, "Library not loaded. Call loadLib() first");
     return false;
   }
 
@@ -59,7 +59,7 @@ bool InferenceEngine::create(const std::string& model_path) {
 }
 
 bool InferenceEngine::runInference(const float* input, const std::vector<int64_t>& input_shape,
-                                    float* output, TensorLayout layout) {
+                                    float* output) {
   if (!api_instance_) {
     error::printError(error::SdkError::API_NOT_INITIALIZED, "Model not loaded");
     return false;
@@ -80,15 +80,12 @@ bool InferenceEngine::runInference(const float* input, const std::vector<int64_t
     return false;
   }
 
-  // Convert TensorLayout enum to int for C API
-  int layout_int = static_cast<int>(layout);
-
   // Run inference via C API
   // Cast int64_t* to long long* for C API compatibility
   int result = api_loader_.runInference(api_instance_, input,
                                         reinterpret_cast<const long long*>(input_shape.data()),
                                         input_shape.size(),
-                                        output, layout_int);
+                                        output);
 
   if (result == 0) {
     error::printError(error::SdkError::INFERENCE_FAILED);

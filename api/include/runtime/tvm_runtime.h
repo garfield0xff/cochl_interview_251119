@@ -29,7 +29,7 @@ public:
 
   bool loadModel(const char* model_path) override;
   bool runInference(const float* input, const std::vector<int64_t>& input_shape,
-                    float* output, TensorLayout layout) override;
+                    float* output) override;
   const char* getRuntimeType() const override { return "TVM"; }
   size_t getInputSize() const override;
   size_t getOutputSize() const override;

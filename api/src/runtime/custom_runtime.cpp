@@ -88,7 +88,7 @@ bool CustomRuntime::loadModel(const char* model_path) {
 }
 
 bool CustomRuntime::runInference(const float* input, const std::vector<int64_t>& input_shape,
-                                  float* output, TensorLayout layout) {
+                                  float* output) {
   if (!thread_pool_) {
     std::cerr << "[CustomRuntime] Thread pool not initialized" << std::endl;
     return false;
@@ -109,9 +109,6 @@ bool CustomRuntime::runInference(const float* input, const std::vector<int64_t>&
   for (auto dim : input_shape) {
     input_size *= dim;
   }
-
-  // Note: CustomRuntime is layout-agnostic in this mock implementation
-  (void)layout;  // Suppress unused parameter warning
 
   std::cout << "[CustomRuntime] Running inference with thread pool..." << std::endl;
 

@@ -70,7 +70,7 @@ bool TVMRuntime::loadModel(const char* model_path) {
 }
 
 bool TVMRuntime::runInference(const float* input, const std::vector<int64_t>& input_shape,
-                               float* output, TensorLayout layout) {
+                               float* output) {
   if (!initialized_) {
     std::cerr << "[TVMRuntime] Runtime not initialized" << std::endl;
     return false;
@@ -103,44 +103,10 @@ bool TVMRuntime::runInference(const float* input, const std::vector<int64_t>& in
     tvm::runtime::Tensor input_tensor = tvm::runtime::Tensor::Empty(
         tvm::ffi::Shape(input_shape), dtype, device_);
 
-    // Copy input data to tensor with layout conversion if needed
+    // Copy input data to tensor
+    // Input is already in NCHW format (TVM's native format)
     float* input_data = static_cast<float*>(input_tensor->data);
-
-    // Handle different layouts
-    // TVM models are typically compiled with NCHW layout
-    if (layout == TensorLayout::NCHW) {
-      // Direct copy for NCHW
-      std::copy(input, input + input_size, input_data);
-    }
-    else if (layout == TensorLayout::NHWC) {
-      // Convert NHWC -> NCHW
-      if (input_shape.size() == 4) {
-        int N = input_shape[0];
-        int C = input_shape[1];
-        int H = input_shape[2];
-        int W = input_shape[3];
-
-        // Convert NHWC -> NCHW
-        for (int n = 0; n < N; ++n) {
-          for (int c = 0; c < C; ++c) {
-            for (int h = 0; h < H; ++h) {
-              for (int w = 0; w < W; ++w) {
-                int nhwc_idx = n * H * W * C + h * W * C + w * C + c;
-                int nchw_idx = n * C * H * W + c * H * W + h * W + w;
-                input_data[nchw_idx] = input[nhwc_idx];
-              }
-            }
-          }
-        }
-      } else {
-        std::cerr << "[TVMRuntime] NHWC layout conversion requires 4D tensor" << std::endl;
-        return false;
-      }
-    }
-    else {
-      std::cerr << "[TVMRuntime] Unsupported tensor layout" << std::endl;
-      return false;
-    }
+    std::copy(input, input + input_size, input_data);
 
     // Create output tensor
     tvm::runtime::Tensor output_tensor = tvm::runtime::Tensor::Empty(

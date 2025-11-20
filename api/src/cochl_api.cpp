@@ -37,7 +37,7 @@ CochlApi::CochlApi() = default;
 CochlApi::~CochlApi() = default;
 
 bool CochlApi::runInference(const float* input, const std::vector<int64_t>& input_shape,
-                            float* output, cochl_api::runtime::TensorLayout layout) const {
+                            float* output) const {
   if (!runtime_manager_) {
     cochl_api::error::printError(cochl_api::error::ApiError::RUNTIME_NOT_INITIALIZED);
     return false;
@@ -58,7 +58,7 @@ bool CochlApi::runInference(const float* input, const std::vector<int64_t>& inpu
     return false;
   }
 
-  return runtime_manager_->runInference(input, input_shape, output, layout);
+  return runtime_manager_->runInference(input, input_shape, output);
 }
 
 size_t CochlApi::getInputSize() const {

@@ -22,7 +22,7 @@ class CochlApi {
   ~CochlApi();
 
   bool runInference(const float* input, const std::vector<int64_t>& input_shape,
-                    float* output, cochl_api::runtime::TensorLayout layout) const;
+                    float* output) const;
 
   size_t getInputSize() const;
   size_t getOutputSize() const;

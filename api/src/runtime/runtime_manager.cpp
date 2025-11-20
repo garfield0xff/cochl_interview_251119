@@ -187,13 +187,13 @@ bool RuntimeManager::loadModel(const std::string& model_path, InferenceEngine ty
 }
 
 bool RuntimeManager::runInference(const float* input, const std::vector<int64_t>& input_shape,
-                                   float* output, TensorLayout layout) const {
+                                   float* output) const {
   if (!runtime_) {
     error::printError(error::ApiError::RUNTIME_NOT_INITIALIZED);
     return false;
   }
 
-  return runtime_->runInference(input, input_shape, output, layout);
+  return runtime_->runInference(input, input_shape, output);
 }
 
 size_t RuntimeManager::getInputSize() const {

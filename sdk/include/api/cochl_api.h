@@ -21,7 +21,7 @@ class CochlApi {
 
   // Function pointers (public for direct access)
   void* (*create)(const char*);
-  int (*runInference)(void*, const float*, const long long*, size_t, float*, int);
+  int (*runInference)(void*, const float*, const long long*, size_t, float*);
   size_t (*getInputSize)(void*);
   size_t (*getOutputSize)(void*);
   void (*destroy)(void*);

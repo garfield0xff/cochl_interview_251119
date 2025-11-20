@@ -25,20 +25,17 @@ int main(int argc, char** argv) {
 
     cochl::InferenceEngine engine;
 
-    std::cout << "\n[1] Loading library: " << library_path << std::endl;
-    if (!engine.loadLibrary(library_path)) {
+    if (!engine.loadLib(library_path)) {
         std::cerr << "Failed to load library" << std::endl;
         return 1;
     }
 
-    std::cout << "\n[2] Creating API instance with model: " << model_path << std::endl;
     if (!engine.create(model_path)) {
         std::cerr << "Failed to create API instance" << std::endl;
         return 1;
     }
 
-    // Load class names
-    std::cout << "\n[3] Loading ImageNet class names: " << class_json << std::endl;
+    // Load IMAGENET-1000 Dataset
     if (!engine.loadClassNames(class_json)) {
         std::cerr << "Failed to load class names" << std::endl;
         return 1;
@@ -46,12 +43,6 @@ int main(int argc, char** argv) {
 
     // Define input shape (NCHW: 1 batch, 3 channels, 224x224)
     std::vector<int64_t> input_shape = {1, 3, 224, 224};
-
-    // Calculate input size from shape
-    size_t input_size = 1;
-    for (auto dim : input_shape) {
-        input_size *= dim;
-    }
 
     // Get output size from model
     size_t output_size = engine.getOutputSize();
@@ -63,12 +54,11 @@ int main(int argc, char** argv) {
         if (i < input_shape.size() - 1) std::cout << ", ";
     }
     std::cout << "]" << std::endl;
-    std::cout << "  Input size: " << input_size << std::endl;
+    std::cout << "  Input size: " << engine.getInputSize() << std::endl;
     std::cout << "  Output size: " << output_size << std::endl;
 
-    // Load and preprocess image
     std::cout << "\n[5] Loading and preprocessing image: " << image_path << std::endl;
-    std::vector<float> input(input_size);
+    std::vector<float> input(engine.getInputSize());
     if (!engine.loadImage(image_path, input.data(), input.size())) {
         std::cerr << "Failed to load image" << std::endl;
         return 1;
@@ -86,7 +76,6 @@ int main(int argc, char** argv) {
     // Display top-5 results with class names
     std::cout << "\n[7] Top 5 predictions:" << std::endl;
 
-    // Create index-score pairs
     std::vector<std::pair<int, float>> indexed_output;
     for (size_t i = 0; i < output.size(); ++i) {
         indexed_output.push_back({static_cast<int>(i), output[i]});

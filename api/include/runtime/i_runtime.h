@@ -27,14 +27,13 @@ public:
 
   /**
    * @brief Run inference
-   * @param input Input data array
-   * @param input_shape Shape of input tensor (e.g., {1, 3, 224, 224})
+   * @param input Input data array (must be in NCHW format)
+   * @param input_shape Shape of input tensor (e.g., {1, 3, 224, 224} for NCHW)
    * @param output Output data array (must be pre-allocated with getOutputSize())
-   * @param layout Tensor layout (NCHW or NHWC)
    * @return true if successful, false otherwise
    */
   virtual bool runInference(const float* input, const std::vector<int64_t>& input_shape,
-                            float* output, TensorLayout layout) = 0;
+                            float* output) = 0;
 
   /**
    * @brief Get runtime type name
