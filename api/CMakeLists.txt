@@ -183,6 +183,19 @@ if(USE_TVM)
     target_link_libraries(cochl_api PRIVATE ${TVM_LIBRARY})
 endif()
 
+# glog: Use FetchContent to download and build
+include(FetchContent)
+FetchContent_Declare(
+    glog
+    GIT_REPOSITORY https://github.com/google/glog.git
+    GIT_TAG v0.6.0
+)
+set(WITH_GFLAGS OFF CACHE BOOL "Use gflags")
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries")
+FetchContent_MakeAvailable(glog)
+
+target_link_libraries(cochl_api PRIVATE glog::glog)
+
 # Set output directory
 set_target_properties(cochl_api PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib

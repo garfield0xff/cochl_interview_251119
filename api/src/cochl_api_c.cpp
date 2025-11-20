@@ -5,7 +5,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "utils/util_img.h"
 
-#include <iostream>
+#include <glog/logging.h>
 #include <map>
 #include <string>
 
@@ -13,11 +13,11 @@ extern "C" {
 
 void* CochlApi_Create(const char* model_path) {
   if (!model_path) {
-    std::cerr << "[CochlApi_Create] NULL model path" << std::endl;
+    LOG(ERROR) << "[CochlApi_Create] NULL model path";
     return nullptr;
   }
 
-  auto api = external_api::CochlApi::Create(std::string(model_path));
+  auto api = external_api::CochlApi::create(std::string(model_path));
   if (!api) {
     return nullptr;
   }
@@ -29,12 +29,12 @@ void* CochlApi_Create(const char* model_path) {
 int CochlApi_RunInference(void* instance, const float* input, size_t input_size,
                           float* output, size_t output_size) {
   if (!instance) {
-    std::cerr << "[CochlApi_RunInference] NULL instance" << std::endl;
+    LOG(ERROR) << "[CochlApi_RunInference] NULL instance";
     return 0;
   }
 
   auto* api = static_cast<external_api::CochlApi*>(instance);
-  return api->RunInference(input, input_size, output, output_size) ? 1 : 0;
+  return api->runInference(input, input_size, output, output_size) ? 1 : 0;
 }
 
 size_t CochlApi_GetInputSize(void* instance) {
@@ -43,7 +43,7 @@ size_t CochlApi_GetInputSize(void* instance) {
   }
 
   auto* api = static_cast<external_api::CochlApi*>(instance);
-  return api->GetInputSize();
+  return api->getInputSize();
 }
 
 size_t CochlApi_GetOutputSize(void* instance) {
@@ -52,7 +52,7 @@ size_t CochlApi_GetOutputSize(void* instance) {
   }
 
   auto* api = static_cast<external_api::CochlApi*>(instance);
-  return api->GetOutputSize();
+  return api->getOutputSize();
 }
 
 void CochlApi_Destroy(void* instance) {
@@ -66,14 +66,14 @@ void CochlApi_Destroy(void* instance) {
 
 int CochlApi_LoadImage(const char* image_path, float* output_data, size_t output_size) {
   if (!image_path || !output_data || output_size == 0) {
-    std::cerr << "[CochlApi_LoadImage] Invalid parameters" << std::endl;
+    LOG(ERROR) << "[CochlApi_LoadImage] Invalid parameters";
     return 0;
   }
 
   // Load and preprocess image
   auto input_hwc = cochl_api::utils::LoadAndPreprocessImage(std::string(image_path));
   if (input_hwc.empty()) {
-    std::cerr << "[CochlApi_LoadImage] Failed to load image: " << image_path << std::endl;
+    LOG(ERROR) << "[CochlApi_LoadImage] Failed to load image: " << image_path;
     return 0;
   }
 
@@ -81,8 +81,8 @@ int CochlApi_LoadImage(const char* image_path, float* output_data, size_t output
   auto input_nchw = cochl_api::utils::HWCToNCHW(input_hwc, 224, 224, 3);
 
   if (input_nchw.size() != output_size) {
-    std::cerr << "[CochlApi_LoadImage] Size mismatch. Expected: " << output_size
-              << ", Got: " << input_nchw.size() << std::endl;
+    LOG(ERROR) << "[CochlApi_LoadImage] Size mismatch. Expected: " << output_size
+              << ", Got: " << input_nchw.size();
     return 0;
   }
 
@@ -93,13 +93,13 @@ int CochlApi_LoadImage(const char* image_path, float* output_data, size_t output
 
 void* CochlApi_LoadClassNames(const char* json_path) {
   if (!json_path) {
-    std::cerr << "[CochlApi_LoadClassNames] NULL json path" << std::endl;
+    LOG(ERROR) << "[CochlApi_LoadClassNames] NULL json path";
     return nullptr;
   }
 
   auto class_map = cochl_api::utils::LoadImageNetClasses(std::string(json_path));
   if (class_map.empty()) {
-    std::cerr << "[CochlApi_LoadClassNames] Failed to load class names" << std::endl;
+    LOG(ERROR) << "[CochlApi_LoadClassNames] Failed to load class names";
     return nullptr;
   }
 

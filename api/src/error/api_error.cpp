@@ -1,6 +1,6 @@
 #include "error/api_error.h"
 
-#include <iostream>
+#include <glog/logging.h>
 
 namespace cochl_api {
 namespace error {
@@ -62,11 +62,11 @@ const char* toString(ApiError error) {
 }
 
 void printError(ApiError error) {
-  std::cerr << "[API ERROR] " << toString(error) << std::endl;
+  LOG(ERROR) << "[API ERROR] " << toString(error);
 }
 
 void printError(ApiError error, const std::string& context) {
-  std::cerr << "[API ERROR] " << toString(error) << ": " << context << std::endl;
+  LOG(ERROR) << "[API ERROR] " << toString(error) << ": " << context;
 }
 
 }  // namespace error

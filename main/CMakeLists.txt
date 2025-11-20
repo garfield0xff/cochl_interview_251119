@@ -44,9 +44,21 @@ target_include_directories(main PRIVATE
     ${SDK_INCLUDE_DIR}
 )
 
+# glog: Use FetchContent to download and build
+include(FetchContent)
+FetchContent_Declare(
+    glog
+    GIT_REPOSITORY https://github.com/google/glog.git
+    GIT_TAG v0.6.0
+)
+set(WITH_GFLAGS OFF CACHE BOOL "Use gflags")
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries")
+FetchContent_MakeAvailable(glog)
+
 target_link_libraries(main PRIVATE
     ${SDK_LIBRARY}
     ${CMAKE_DL_LIBS}
+    glog::glog
 )
 
 # Define library path as compile definition

@@ -1,7 +1,7 @@
 #include "runtime/runtime_manager.h"
 
 #include <algorithm>
-#include <iostream>
+#include <glog/logging.h>
 
 #include "error/api_error.h"
 
@@ -60,8 +60,7 @@ std::unique_ptr<RuntimeManager> RuntimeManager::create(const std::string& model_
     default:
       break;
   }
-  std::cout << "[RuntimeManager] Successfully loaded model with "
-            << runtime_name << " runtime" << std::endl;
+  LOG(INFO) << "Successfully loaded model with " << runtime_name << " runtime";
 
   return manager;
 }

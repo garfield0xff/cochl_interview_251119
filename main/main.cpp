@@ -1,3 +1,4 @@
+#include <glog/logging.h>
 #include <iostream>
 #include <vector>
 #include <algorithm>
@@ -5,8 +6,8 @@
 #include "inference_engine.h"
 
 int main(int argc, char** argv) {
-    std::cout << "=== Cochl Inference Engine Test ===" << std::endl;
-
+    google::InitGoogleLogging(argv[0]);
+    FLAGS_logtostderr = 1;  
     // Parse arguments
     if (argc < 4) {
         std::cerr << "Usage: " << argv[0] << "<model> <image> <class_json>" << std::endl;
@@ -30,9 +31,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::cout << "\n[2] Loading model: " << model_path << std::endl;
-    if (!engine.loadModel(model_path)) {
-        std::cerr << "Failed to load model" << std::endl;
+    std::cout << "\n[2] Creating API instance with model: " << model_path << std::endl;
+    if (!engine.create(model_path)) {
+        std::cerr << "Failed to create API instance" << std::endl;
         return 1;
     }
 
@@ -63,11 +64,9 @@ int main(int argc, char** argv) {
 
     // Run inference
     std::cout << "\n[6] Running inference..." << std::endl;
-    auto status = engine.runInference(input.data(), input.size(),
-                                       output.data(), output.size());
-
-    if (status != cochl::InferenceStatus::OK) {
-        std::cerr << "Inference failed with status: " << static_cast<int>(status) << std::endl;
+    if (!engine.runInference(input.data(), input.size(),
+                             output.data(), output.size())) {
+        std::cerr << "Inference failed" << std::endl;
         return 1;
     }
 
@@ -95,6 +94,5 @@ int main(int argc, char** argv) {
                   << " (class " << class_idx << "): " << score << std::endl;
     }
 
-    std::cout << "\n=== Test completed successfully ===" << std::endl;
     return 0;
 }

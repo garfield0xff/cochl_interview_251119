@@ -5,7 +5,7 @@
 
 #include "cochl_api.h"
 
-#include <iostream>
+#include <glog/logging.h>
 #include <memory>
 #include <string>
 
@@ -14,7 +14,7 @@
 
 namespace external_api {
 std::unique_ptr<CochlApi> CochlApi::create(const std::string& model_path) {
-  std::cout << "[CochlApi] Loading model from: " << model_path << std::endl;
+  LOG(INFO) << "[CochlApi] Loading model from: " << model_path;
 
   if (model_path.empty()) {
     cochl_api::error::printError(cochl_api::error::ApiError::EMPTY_PATH);

@@ -30,6 +30,8 @@ message(STATUS "Found cochl_api headers: ${COCHL_API_INCLUDE_DIR}")
 # SDK library
 add_library(cochl_sdk
     src/inference_engine.cpp
+    src/error/sdk_error.cpp
+    src/api/cochl_api_loader.cpp
 )
 
 target_include_directories(cochl_sdk PUBLIC
@@ -37,9 +39,21 @@ target_include_directories(cochl_sdk PUBLIC
     ${COCHL_API_INCLUDE_DIR}
 )
 
+# glog: Use FetchContent to download and build
+include(FetchContent)
+FetchContent_Declare(
+    glog
+    GIT_REPOSITORY https://github.com/google/glog.git
+    GIT_TAG v0.6.0
+)
+set(WITH_GFLAGS OFF CACHE BOOL "Use gflags")
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries")
+FetchContent_MakeAvailable(glog)
+
 # Link dl library for dlopen/dlsym
 target_link_libraries(cochl_sdk PUBLIC
     ${CMAKE_DL_LIBS}
+    glog::glog
 )
 
 # Set output directory

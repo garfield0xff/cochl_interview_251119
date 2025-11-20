@@ -6,15 +6,9 @@
 #include <memory>
 #include <string>
 
-namespace cochl {
+#include "api/cochl_api_loader.h"
 
-enum class InferenceStatus {
-  OK,
-  ERROR_NOT_INITIALIZED,
-  ERROR_INVALID_INPUT,
-  ERROR_INFERENCE_FAILED,
-  ERROR_LIBRARY_LOAD_FAILED
-};
+namespace cochl {
 
 class InferenceEngine {
  public:
@@ -24,17 +18,18 @@ class InferenceEngine {
   // Load libcochl_api.so dynamically
   bool loadLibrary(const std::string& library_path);
 
-  // Load model from file path
+  // Create API instance and load model from file path
   // Model format is auto-detected: .tflite -> TFLite, .pt/.pth -> LibTorch
-  bool loadModel(const std::string& model_path);
+  bool create(const std::string& model_path);
 
   // Run inference
   // input: float array of input data
   // input_size: size of input array
   // output: float array to store output (must be pre-allocated)
   // output_size: size of output array
-  InferenceStatus runInference(const float* input, size_t input_size,
-                                float* output, size_t output_size);
+  // Returns true on success, false on error
+  bool runInference(const float* input, size_t input_size,
+                    float* output, size_t output_size);
 
   // Get input tensor size
   size_t getInputSize() const;
@@ -52,20 +47,9 @@ class InferenceEngine {
   std::string getClassName(int class_idx) const;
 
  private:
-  void* lib_handle_;        // dlopen handle
-  void* api_instance_;      // CochlApi instance
-  void* class_map_;         // ImageNet class map
-
-  // Function pointers from C API
-  void* (*CochlApi_Create_)(const char*);
-  int (*CochlApi_RunInference_)(void*, const float*, size_t, float*, size_t);
-  size_t (*CochlApi_GetInputSize_)(void*);
-  size_t (*CochlApi_GetOutputSize_)(void*);
-  void (*CochlApi_Destroy_)(void*);
-  int (*CochlApi_LoadImage_)(const char*, float*, size_t);
-  void* (*CochlApi_LoadClassNames_)(const char*);
-  const char* (*CochlApi_GetClassName_)(void*, int);
-  void (*CochlApi_DestroyClassMap_)(void*);
+  api::CochlApiLoader api_loader_;  // Dynamic library loader
+  void* api_instance_;              // CochlApi instance
+  void* class_map_;                 // ImageNet class map
 };
 
 }  // namespace cochl
