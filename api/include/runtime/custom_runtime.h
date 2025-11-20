@@ -21,6 +21,7 @@ namespace runtime {
 
 /**
  * @brief Thread pool for parallel task execution
+ * TODO: job queue in worker, reserve thread_max_num
  */
 class ThreadPool {
  public:

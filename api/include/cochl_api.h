@@ -12,6 +12,12 @@ enum class TensorLayout;
 }
 }  // namespace cochl_api
 
+/**
+ * @brief Support Multi Runtime Backend
+ * 1. API 는 Core로서 Multi Runtime에 대한 조건부 컴파일을 지원해야함
+ * 2. 조건부는 Runtime, Architecture, Accelerator 를 지원
+ * 3. EdgeSDK에서 사용하기위해 정적링크를 지원해야함. <--- 이거 먼저 ( libtorch, tensorflow 정적 컴파일 해놔야할듯 ) 
+ */
 namespace external_api {
 class CochlApi {
  public:
