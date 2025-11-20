@@ -18,7 +18,7 @@ public:
    * @param model_path Path to model file
    * @return true if successful, false otherwise
    */
-  virtual bool LoadModel(const char* model_path) = 0;
+  virtual bool loadModel(const char* model_path) = 0;
 
   /**
    * @brief Run inference
@@ -28,26 +28,26 @@ public:
    * @param output_size Size of output array
    * @return true if successful, false otherwise
    */
-  virtual bool RunInference(const float* input, size_t input_size, float* output,
+  virtual bool runInference(const float* input, size_t input_size, float* output,
                             size_t output_size) = 0;
 
   /**
    * @brief Get runtime type name
-   * @note  use later  
+   * @note  use later
    */
-  virtual const char* GetRuntimeType() const = 0;
+  virtual const char* getRuntimeType() const = 0;
 
   /**
    * @brief Get input size
    * @return Size of input array
    */
-  virtual size_t GetInputSize() const = 0;
+  virtual size_t getInputSize() const = 0;
 
   /**
    * @brief Get output size
    * @return Size of output array
    */
-  virtual size_t GetOutputSize() const = 0;
+  virtual size_t getOutputSize() const = 0;
 };
 
 }  // namespace runtime

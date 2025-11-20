@@ -14,7 +14,7 @@ TorchRuntime::TorchRuntime() : initialized_(false) {}
 
 TorchRuntime::~TorchRuntime() = default;
 
-bool TorchRuntime::LoadModel(const char* model_path) {
+bool TorchRuntime::loadModel(const char* model_path) {
   std::cout << "[TorchRuntime] Loading model from: " << model_path << std::endl;
 
   try {
@@ -35,7 +35,7 @@ bool TorchRuntime::LoadModel(const char* model_path) {
   }
 }
 
-bool TorchRuntime::RunInference(const float* input, size_t input_size, float* output,
+bool TorchRuntime::runInference(const float* input, size_t input_size, float* output,
                                  size_t output_size) {
   if (!initialized_) {
     std::cerr << "[TorchRuntime] Runtime not initialized" << std::endl;
@@ -87,12 +87,12 @@ bool TorchRuntime::RunInference(const float* input, size_t input_size, float* ou
   }
 }
 
-size_t TorchRuntime::GetInputSize() const {
+size_t TorchRuntime::getInputSize() const {
   // For ResNet50: 1 * 3 * 224 * 224 = 150528
   return 150528;
 }
 
-size_t TorchRuntime::GetOutputSize() const {
+size_t TorchRuntime::getOutputSize() const {
   // For ResNet50: 1000 classes
   return 1000;
 }

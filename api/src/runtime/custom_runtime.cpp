@@ -64,7 +64,7 @@ CustomRuntime::CustomRuntime()
 
 CustomRuntime::~CustomRuntime() = default;
 
-bool CustomRuntime::LoadModel(const char* model_path) {
+bool CustomRuntime::loadModel(const char* model_path) {
   if (!model_path) {
     std::cerr << "[CustomRuntime] NULL model path" << std::endl;
     return false;
@@ -87,7 +87,7 @@ bool CustomRuntime::LoadModel(const char* model_path) {
   return true;
 }
 
-bool CustomRuntime::RunInference(const float* input, size_t input_size,
+bool CustomRuntime::runInference(const float* input, size_t input_size,
                                   float* output, size_t output_size) {
   if (!thread_pool_) {
     std::cerr << "[CustomRuntime] Thread pool not initialized" << std::endl;
@@ -130,19 +130,19 @@ bool CustomRuntime::RunInference(const float* input, size_t input_size,
   return true;
 }
 
-size_t CustomRuntime::GetInputSize() const {
+size_t CustomRuntime::getInputSize() const {
   return input_size_;
 }
 
-size_t CustomRuntime::GetOutputSize() const {
+size_t CustomRuntime::getOutputSize() const {
   return output_size_;
 }
 
-const char* CustomRuntime::GetRuntimeType() const {
+const char* CustomRuntime::getRuntimeType() const {
   return "Custom Backend (Thread Pool)";
 }
 
-void CustomRuntime::SetNumThreads(size_t num_threads) {
+void CustomRuntime::setNumThreads(size_t num_threads) {
   num_threads_ = num_threads;
   if (thread_pool_) {
     // Recreate thread pool with new size

@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <iostream>
 
+#include "error/api_error.h"
+
 #ifdef USE_TFLITE
 #include "runtime/tf_runtime.h"
 #endif
@@ -22,27 +24,25 @@ RuntimeManager::RuntimeManager() : runtime_type_(InferenceEngine::UNKNOWN), init
 
 RuntimeManager::~RuntimeManager() = default;
 
-std::unique_ptr<RuntimeManager> RuntimeManager::Create(const std::string& model_path) {
+std::unique_ptr<RuntimeManager> RuntimeManager::create(const std::string& model_path) {
   if (model_path.empty()) {
-    std::cerr << "[RuntimeManager] Error: Empty model path" << std::endl;
+    error::printError(error::ApiError::EMPTY_PATH);
     return nullptr;
   }
 
   auto manager = std::unique_ptr<RuntimeManager>(new RuntimeManager());
 
   // Detect runtime type from file extension
-  InferenceEngine type = DetectInferenceEngine(model_path);
+  InferenceEngine type = detectInferenceEngine(model_path);
 
   if (type == InferenceEngine::UNKNOWN) {
-    std::cerr << "[RuntimeManager] Error: Unsupported model format: " << model_path
-              << std::endl;
+    error::printError(error::ApiError::MODEL_INVALID_FORMAT, model_path);
     return nullptr;
   }
 
   // Load model with detected runtime
-  if (!manager->LoadModel(model_path, type)) {
-    std::cerr << "[RuntimeManager] Error: Failed to load model: " << model_path
-              << std::endl;
+  if (!manager->loadModel(model_path, type)) {
+    error::printError(error::ApiError::MODEL_LOAD_FAILED, model_path);
     return nullptr;
   }
 
@@ -66,7 +66,7 @@ std::unique_ptr<RuntimeManager> RuntimeManager::Create(const std::string& model_
   return manager;
 }
 
-RuntimeManager::InferenceEngine RuntimeManager::DetectInferenceEngine(
+RuntimeManager::InferenceEngine RuntimeManager::detectInferenceEngine(
     const std::string& model_path) {
 
   size_t dot_pos = model_path.find_last_of('.');
@@ -84,21 +84,21 @@ RuntimeManager::InferenceEngine RuntimeManager::DetectInferenceEngine(
 #ifdef USE_TFLITE
     return InferenceEngine::TFLITE;
 #else
-    std::cerr << "[RuntimeManager] TFLite runtime not compiled in" << std::endl;
+    error::printError(error::ApiError::RUNTIME_NOT_SUPPORTED, "TFLite");
     return InferenceEngine::UNKNOWN;
 #endif
   } else if (extension == "pt" || extension == "pth") {
 #ifdef USE_LIBTORCH
     return InferenceEngine::LIBTORCH;
 #else
-    std::cerr << "[RuntimeManager] LibTorch runtime not compiled in" << std::endl;
+    error::printError(error::ApiError::RUNTIME_NOT_SUPPORTED, "LibTorch");
     return InferenceEngine::UNKNOWN;
 #endif
   } else if (extension == "bin") {
 #ifdef USE_CUSTOM
     return InferenceEngine::CUSTOM;
 #else
-    std::cerr << "[RuntimeManager] Custom runtime not compiled in" << std::endl;
+    error::printError(error::ApiError::RUNTIME_NOT_SUPPORTED, "Custom");
     return InferenceEngine::UNKNOWN;
 #endif
   }
@@ -106,9 +106,9 @@ RuntimeManager::InferenceEngine RuntimeManager::DetectInferenceEngine(
   return InferenceEngine::UNKNOWN;
 }
 
-bool RuntimeManager::LoadModel(const std::string& model_path, InferenceEngine type) {
+bool RuntimeManager::loadModel(const std::string& model_path, InferenceEngine type) {
   if (initialized_) {
-    std::cerr << "[RuntimeManager] Error: Runtime already initialized" << std::endl;
+    error::printError(error::ApiError::MODEL_ALREADY_LOADED);
     return false;
   }
 
@@ -118,7 +118,8 @@ bool RuntimeManager::LoadModel(const std::string& model_path, InferenceEngine ty
 #ifdef USE_TFLITE
     case InferenceEngine::TFLITE: {
       auto tf_runtime = std::make_unique<TFRuntime>();
-      if (!tf_runtime->LoadModel(model_path.c_str())) {
+      if (!tf_runtime->loadModel(model_path.c_str())) {
+        error::printError(error::ApiError::MODEL_LOAD_FAILED, "TFLite runtime");
         return false;
       }
       runtime_ = std::move(tf_runtime);
@@ -130,7 +131,8 @@ bool RuntimeManager::LoadModel(const std::string& model_path, InferenceEngine ty
 #ifdef USE_LIBTORCH
     case InferenceEngine::LIBTORCH: {
       auto torch_runtime = std::make_unique<TorchRuntime>();
-      if (!torch_runtime->LoadModel(model_path.c_str())) {
+      if (!torch_runtime->loadModel(model_path.c_str())) {
+        error::printError(error::ApiError::MODEL_LOAD_FAILED, "LibTorch runtime");
         return false;
       }
       runtime_ = std::move(torch_runtime);
@@ -142,7 +144,8 @@ bool RuntimeManager::LoadModel(const std::string& model_path, InferenceEngine ty
 #ifdef USE_CUSTOM
     case InferenceEngine::CUSTOM: {
       auto custom_runtime = std::make_unique<CustomRuntime>();
-      if (!custom_runtime->LoadModel(model_path.c_str())) {
+      if (!custom_runtime->loadModel(model_path.c_str())) {
+        error::printError(error::ApiError::MODEL_LOAD_FAILED, "Custom runtime");
         return false;
       }
       runtime_ = std::move(custom_runtime);
@@ -152,37 +155,37 @@ bool RuntimeManager::LoadModel(const std::string& model_path, InferenceEngine ty
 #endif
 
     default:
-      std::cerr << "[RuntimeManager] Unsupported runtime type" << std::endl;
+      error::printError(error::ApiError::RUNTIME_NOT_SUPPORTED);
       return false;
   }
 }
 
-bool RuntimeManager::RunInference(const float* input, size_t input_size, float* output,
+bool RuntimeManager::runInference(const float* input, size_t input_size, float* output,
                                    size_t output_size) const {
   if (!runtime_) {
-    std::cerr << "[RuntimeManager] No runtime loaded" << std::endl;
+    error::printError(error::ApiError::RUNTIME_NOT_INITIALIZED);
     return false;
   }
 
-  return runtime_->RunInference(input, input_size, output, output_size);
+  return runtime_->runInference(input, input_size, output, output_size);
 }
 
-size_t RuntimeManager::GetInputSize() const {
+size_t RuntimeManager::getInputSize() const {
   if (!runtime_) {
-    std::cerr << "[RuntimeManager] No runtime loaded" << std::endl;
+    error::printError(error::ApiError::RUNTIME_NOT_INITIALIZED);
     return 0;
   }
 
-  return runtime_->GetInputSize();
+  return runtime_->getInputSize();
 }
 
-size_t RuntimeManager::GetOutputSize() const {
+size_t RuntimeManager::getOutputSize() const {
   if (!runtime_) {
-    std::cerr << "[RuntimeManager] No runtime loaded" << std::endl;
+    error::printError(error::ApiError::RUNTIME_NOT_INITIALIZED);
     return 0;
   }
 
-  return runtime_->GetOutputSize();
+  return runtime_->getOutputSize();
 }
 
 }  // namespace runtime

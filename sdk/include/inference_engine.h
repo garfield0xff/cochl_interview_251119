@@ -22,34 +22,34 @@ class InferenceEngine {
   ~InferenceEngine();
 
   // Load libcochl_api.so dynamically
-  bool LoadLibrary(const std::string& library_path);
+  bool loadLibrary(const std::string& library_path);
 
   // Load model from file path
   // Model format is auto-detected: .tflite -> TFLite, .pt/.pth -> LibTorch
-  bool LoadModel(const std::string& model_path);
+  bool loadModel(const std::string& model_path);
 
   // Run inference
   // input: float array of input data
   // input_size: size of input array
   // output: float array to store output (must be pre-allocated)
   // output_size: size of output array
-  InferenceStatus RunInference(const float* input, size_t input_size,
+  InferenceStatus runInference(const float* input, size_t input_size,
                                 float* output, size_t output_size);
 
   // Get input tensor size
-  size_t GetInputSize() const;
+  size_t getInputSize() const;
 
   // Get output tensor size
-  size_t GetOutputSize() const;
+  size_t getOutputSize() const;
 
   // Load and preprocess image (returns preprocessed data in NCHW format)
-  bool LoadImage(const std::string& image_path, float* output_data, size_t output_size);
+  bool loadImage(const std::string& image_path, float* output_data, size_t output_size);
 
   // Load ImageNet class names
-  bool LoadClassNames(const std::string& json_path);
+  bool loadClassNames(const std::string& json_path);
 
   // Get class name from index
-  std::string GetClassName(int class_idx) const;
+  std::string getClassName(int class_idx) const;
 
  private:
   void* lib_handle_;        // dlopen handle

@@ -15,7 +15,7 @@ TFRuntime::TFRuntime() : initialized_(false) {}
 
 TFRuntime::~TFRuntime() = default;
 
-bool TFRuntime::LoadModel(const char* model_path) {
+bool TFRuntime::loadModel(const char* model_path) {
   std::cout << "[TFRuntime] Loading model from: " << model_path << std::endl;
 
   // Load model
@@ -47,7 +47,7 @@ bool TFRuntime::LoadModel(const char* model_path) {
   return true;
 }
 
-bool TFRuntime::RunInference(const float* input, size_t input_size, float* output,
+bool TFRuntime::runInference(const float* input, size_t input_size, float* output,
                               size_t output_size) {
   if (!initialized_) {
     std::cerr << "[TFRuntime] Runtime not initialized" << std::endl;
@@ -102,7 +102,7 @@ bool TFRuntime::RunInference(const float* input, size_t input_size, float* outpu
   return true;
 }
 
-size_t TFRuntime::GetInputSize() const {
+size_t TFRuntime::getInputSize() const {
   if (!initialized_ || !interpreter_) {
     return 0;
   }
@@ -118,7 +118,7 @@ size_t TFRuntime::GetInputSize() const {
   return input_size;
 }
 
-size_t TFRuntime::GetOutputSize() const {
+size_t TFRuntime::getOutputSize() const {
   if (!initialized_ || !interpreter_) {
     return 0;
   }

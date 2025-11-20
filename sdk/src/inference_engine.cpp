@@ -39,7 +39,7 @@ InferenceEngine::~InferenceEngine() {
   }
 }
 
-bool InferenceEngine::LoadLibrary(const std::string& library_path) {
+bool InferenceEngine::loadLibrary(const std::string& library_path) {
   if (lib_handle_) {
     std::cerr << "[InferenceEngine] Library already loaded" << std::endl;
     return false;
@@ -143,7 +143,7 @@ bool InferenceEngine::LoadLibrary(const std::string& library_path) {
   return true;
 }
 
-bool InferenceEngine::LoadModel(const std::string& model_path) {
+bool InferenceEngine::loadModel(const std::string& model_path) {
   if (!lib_handle_) {
     std::cerr << "[InferenceEngine] Error: Library not loaded. Call LoadLibrary() first" << std::endl;
     return false;
@@ -172,7 +172,7 @@ bool InferenceEngine::LoadModel(const std::string& model_path) {
   return true;
 }
 
-InferenceStatus InferenceEngine::RunInference(const float* input, size_t input_size,
+InferenceStatus InferenceEngine::runInference(const float* input, size_t input_size,
                                                float* output, size_t output_size) {
   if (!api_instance_) {
     std::cerr << "[InferenceEngine] Error: Model not loaded" << std::endl;
@@ -200,21 +200,21 @@ InferenceStatus InferenceEngine::RunInference(const float* input, size_t input_s
   return InferenceStatus::OK;
 }
 
-size_t InferenceEngine::GetInputSize() const {
+size_t InferenceEngine::getInputSize() const {
   if (!api_instance_) {
     return 0;
   }
   return CochlApi_GetInputSize_(api_instance_);
 }
 
-size_t InferenceEngine::GetOutputSize() const {
+size_t InferenceEngine::getOutputSize() const {
   if (!api_instance_) {
     return 0;
   }
   return CochlApi_GetOutputSize_(api_instance_);
 }
 
-bool InferenceEngine::LoadImage(const std::string& image_path, float* output_data, size_t output_size) {
+bool InferenceEngine::loadImage(const std::string& image_path, float* output_data, size_t output_size) {
   if (!lib_handle_) {
     std::cerr << "[InferenceEngine] Error: Library not loaded" << std::endl;
     return false;
@@ -224,7 +224,7 @@ bool InferenceEngine::LoadImage(const std::string& image_path, float* output_dat
   return result == 1;
 }
 
-bool InferenceEngine::LoadClassNames(const std::string& json_path) {
+bool InferenceEngine::loadClassNames(const std::string& json_path) {
   if (!lib_handle_) {
     std::cerr << "[InferenceEngine] Error: Library not loaded" << std::endl;
     return false;
@@ -245,7 +245,7 @@ bool InferenceEngine::LoadClassNames(const std::string& json_path) {
   return true;
 }
 
-std::string InferenceEngine::GetClassName(int class_idx) const {
+std::string InferenceEngine::getClassName(int class_idx) const {
   if (!class_map_) {
     return "Unknown (class map not loaded)";
   }

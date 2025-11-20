@@ -22,12 +22,12 @@ public:
   TFRuntime();
   ~TFRuntime() override;
 
-  bool LoadModel(const char* model_path) override;
-  bool RunInference(const float* input, size_t input_size, float* output,
+  bool loadModel(const char* model_path) override;
+  bool runInference(const float* input, size_t input_size, float* output,
                     size_t output_size) override;
-  const char* GetRuntimeType() const override { return "TensorFlow Lite"; }
-  size_t GetInputSize() const override;
-  size_t GetOutputSize() const override;
+  const char* getRuntimeType() const override { return "TensorFlow Lite"; }
+  size_t getInputSize() const override;
+  size_t getOutputSize() const override;
 
 private:
   std::unique_ptr<tflite::FlatBufferModel> model_;

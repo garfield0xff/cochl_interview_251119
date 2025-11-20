@@ -66,7 +66,7 @@ class ThreadPool {
 
       auto future = Submit([callback, chunk_start, chunk_end]() {
         callback(chunk_start, chunk_end);
-      });
+    });
 
       futures.push_back(std::move(future));
     }
@@ -98,18 +98,18 @@ class CustomRuntime : public IRuntime {
   CustomRuntime();
   ~CustomRuntime() override;
 
-  bool LoadModel(const char* model_path) override;
-  bool RunInference(const float* input, size_t input_size,
+  bool loadModel(const char* model_path) override;
+  bool runInference(const float* input, size_t input_size,
                     float* output, size_t output_size) override;
-  size_t GetInputSize() const override;
-  size_t GetOutputSize() const override;
-  const char* GetRuntimeType() const override;
+  size_t getInputSize() const override;
+  size_t getOutputSize() const override;
+  const char* getRuntimeType() const override;
 
   /**
    * @brief Set number of threads for thread pool
    * @param num_threads Number of threads to use
    */
-  void SetNumThreads(size_t num_threads);
+  void setNumThreads(size_t num_threads);
 
  private:
   std::unique_ptr<ThreadPool> thread_pool_;

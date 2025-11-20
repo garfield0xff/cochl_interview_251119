@@ -126,6 +126,7 @@ endif()
 set(API_SOURCES
     src/cochl_api.cpp
     src/cochl_api_c.cpp
+    src/error/api_error.cpp
     ${RUNTIME_SOURCES}
 )
 

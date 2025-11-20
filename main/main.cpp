@@ -25,20 +25,20 @@ int main(int argc, char** argv) {
     cochl::InferenceEngine engine;
 
     std::cout << "\n[1] Loading library: " << library_path << std::endl;
-    if (!engine.LoadLibrary(library_path)) {
+    if (!engine.loadLibrary(library_path)) {
         std::cerr << "Failed to load library" << std::endl;
         return 1;
     }
 
     std::cout << "\n[2] Loading model: " << model_path << std::endl;
-    if (!engine.LoadModel(model_path)) {
+    if (!engine.loadModel(model_path)) {
         std::cerr << "Failed to load model" << std::endl;
         return 1;
     }
 
     // Get input/output sizes
-    size_t input_size = engine.GetInputSize();
-    size_t output_size = engine.GetOutputSize();
+    size_t input_size = engine.getInputSize();
+    size_t output_size = engine.getOutputSize();
 
     std::cout << "\n[3] Model information:" << std::endl;
     std::cout << "  Input size: " << input_size << std::endl;
@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
 
     // Load class names
     std::cout << "\n[4] Loading ImageNet class names: " << class_json << std::endl;
-    if (!engine.LoadClassNames(class_json)) {
+    if (!engine.loadClassNames(class_json)) {
         std::cerr << "Failed to load class names" << std::endl;
         return 1;
     }
@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
     // Load and preprocess image
     std::cout << "\n[5] Loading and preprocessing image: " << image_path << std::endl;
     std::vector<float> input(input_size);
-    if (!engine.LoadImage(image_path, input.data(), input.size())) {
+    if (!engine.loadImage(image_path, input.data(), input.size())) {
         std::cerr << "Failed to load image" << std::endl;
         return 1;
     }
@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
 
     // Run inference
     std::cout << "\n[6] Running inference..." << std::endl;
-    auto status = engine.RunInference(input.data(), input.size(),
+    auto status = engine.runInference(input.data(), input.size(),
                                        output.data(), output.size());
 
     if (status != cochl::InferenceStatus::OK) {
@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < std::min(5, static_cast<int>(indexed_output.size())); ++i) {
         int class_idx = indexed_output[i].first;
         float score = indexed_output[i].second;
-        std::string class_name = engine.GetClassName(class_idx);
+        std::string class_name = engine.getClassName(class_idx);
 
         std::cout << "  " << (i + 1) << ". " << class_name
                   << " (class " << class_idx << "): " << score << std::endl;

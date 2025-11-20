@@ -10,16 +10,14 @@ namespace cochl_api {
 namespace runtime {
 
 /**
- * @brief Manages runtime selection based on model file extension
- *
- * Supported formats:
- * - .tflite -> TensorFlow Lite runtime
- * - .pt, .pth -> LibTorch runtime
- * - .bin -> Custom thread pool runtime (mock)
+ * @brief Runtime AutoCasting
  */
 class RuntimeManager {
 public:
 
+  /**
+   * @brief Support Runtime
+   */
   enum class InferenceEngine {
     UNKNOWN,
     TFLITE,
@@ -32,30 +30,30 @@ public:
    * @param model_path Path to model file
    * @return Unique pointer to RuntimeManager, nullptr on failure
    */
-  static std::unique_ptr<RuntimeManager> Create(const std::string& model_path);
+  static std::unique_ptr<RuntimeManager> create(const std::string& model_path);
 
   ~RuntimeManager();
 
   /**
    * @brief Run inference using the loaded runtime
    */
-  bool RunInference(const float* input, size_t input_size, float* output,
+  bool runInference(const float* input, size_t input_size, float* output,
                     size_t output_size) const;
 
   /**
-   * @brief Get current inference engine type
+   * @brief Get inference engine type
    */
-  InferenceEngine GetInferenceEngineType() const { return runtime_type_; }
+  InferenceEngine getInferenceEngineType() const { return runtime_type_; }
 
   /**
    * @brief Get input size
    */
-  size_t GetInputSize() const;
+  size_t getInputSize() const;
 
   /**
    * @brief Get output size
    */
-  size_t GetOutputSize() const;
+  size_t getOutputSize() const;
 
 private:
   RuntimeManager();
@@ -65,7 +63,7 @@ private:
    * @param model_path Model file path
    * @return Detected InferenceEngine
    */
-  static InferenceEngine DetectInferenceEngine(const std::string& model_path);
+  static InferenceEngine detectInferenceEngine(const std::string& model_path);
 
   /**
    * @brief Load model using appropriate runtime
@@ -73,9 +71,9 @@ private:
    * @param type Runtime type to use
    * @return true if successful, false otherwise
    */
-  bool LoadModel(const std::string& model_path, InferenceEngine type);
+  bool loadModel(const std::string& model_path, InferenceEngine type);
 
-  std::unique_ptr<IRuntime> runtime_;  // Holds the actual runtime instance
+  std::unique_ptr<IRuntime> runtime_;  //runtime instance
   InferenceEngine runtime_type_;
   bool initialized_;
 };
