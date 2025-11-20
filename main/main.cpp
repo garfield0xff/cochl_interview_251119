@@ -37,20 +37,34 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Get input/output sizes
-    size_t input_size = engine.getInputSize();
-    size_t output_size = engine.getOutputSize();
-
-    std::cout << "\n[3] Model information:" << std::endl;
-    std::cout << "  Input size: " << input_size << std::endl;
-    std::cout << "  Output size: " << output_size << std::endl;
-
     // Load class names
-    std::cout << "\n[4] Loading ImageNet class names: " << class_json << std::endl;
+    std::cout << "\n[3] Loading ImageNet class names: " << class_json << std::endl;
     if (!engine.loadClassNames(class_json)) {
         std::cerr << "Failed to load class names" << std::endl;
         return 1;
     }
+
+    // Define input shape (NCHW: 1 batch, 3 channels, 224x224)
+    std::vector<int64_t> input_shape = {1, 3, 224, 224};
+
+    // Calculate input size from shape
+    size_t input_size = 1;
+    for (auto dim : input_shape) {
+        input_size *= dim;
+    }
+
+    // Get output size from model
+    size_t output_size = engine.getOutputSize();
+
+    std::cout << "\n[4] Model information:" << std::endl;
+    std::cout << "  Input shape: [";
+    for (size_t i = 0; i < input_shape.size(); ++i) {
+        std::cout << input_shape[i];
+        if (i < input_shape.size() - 1) std::cout << ", ";
+    }
+    std::cout << "]" << std::endl;
+    std::cout << "  Input size: " << input_size << std::endl;
+    std::cout << "  Output size: " << output_size << std::endl;
 
     // Load and preprocess image
     std::cout << "\n[5] Loading and preprocessing image: " << image_path << std::endl;
@@ -64,8 +78,7 @@ int main(int argc, char** argv) {
 
     // Run inference
     std::cout << "\n[6] Running inference..." << std::endl;
-    if (!engine.runInference(input.data(), input.size(),
-                             output.data(), output.size())) {
+    if (!engine.runInference(input.data(), input_shape, output.data())) {
         std::cerr << "Inference failed" << std::endl;
         return 1;
     }

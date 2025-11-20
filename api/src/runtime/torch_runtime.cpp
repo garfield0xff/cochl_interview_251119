@@ -1,4 +1,5 @@
 #include "runtime/torch_runtime.h"
+#include "runtime/runtime_manager.h"
 
 #ifdef USE_LIBTORCH
 
@@ -10,9 +11,64 @@
 namespace cochl_api {
 namespace runtime {
 
-TorchRuntime::TorchRuntime() : initialized_(false) {}
+TorchRuntime::TorchRuntime()
+    : initialized_(false),
+      input_size_(0),
+      output_size_(0) {}
 
 TorchRuntime::~TorchRuntime() = default;
+
+bool TorchRuntime::inferShapes() {
+  try {
+    // Try common input shapes for image models
+    std::vector<std::vector<int64_t>> common_shapes = {
+      {1, 3, 224, 224},  // ResNet, VGG, etc.
+      {1, 3, 299, 299},  // Inception
+      {1, 3, 512, 512},  // Larger models
+    };
+
+    for (const auto& shape : common_shapes) {
+      try {
+        // Create dummy input
+        auto dummy_input = torch::zeros(shape, torch::kFloat32);
+        std::vector<torch::jit::IValue> inputs;
+        inputs.push_back(dummy_input);
+
+        // Try forward pass
+        auto output = module_->forward(inputs).toTensor();
+
+        // Success! Cache the shapes
+        input_shape_ = shape;
+        input_size_ = 1;
+        for (auto dim : shape) {
+          input_size_ *= dim;
+        }
+
+        output_size_ = output.numel();
+
+        std::cout << "[TorchRuntime] Inferred input shape: [";
+        for (size_t i = 0; i < input_shape_.size(); ++i) {
+          std::cout << input_shape_[i];
+          if (i < input_shape_.size() - 1) std::cout << ", ";
+        }
+        std::cout << "], size: " << input_size_ << std::endl;
+        std::cout << "[TorchRuntime] Inferred output size: " << output_size_ << std::endl;
+
+        return true;
+      } catch (...) {
+        // Try next shape
+        continue;
+      }
+    }
+
+    std::cerr << "[TorchRuntime] Failed to infer shapes with common input sizes" << std::endl;
+    return false;
+
+  } catch (const c10::Error& e) {
+    std::cerr << "[TorchRuntime] Error inferring shapes: " << e.what() << std::endl;
+    return false;
+  }
+}
 
 bool TorchRuntime::loadModel(const char* model_path) {
   std::cout << "[TorchRuntime] Loading model from: " << model_path << std::endl;
@@ -25,6 +81,12 @@ bool TorchRuntime::loadModel(const char* model_path) {
     // Set to eval mode
     module_->eval();
 
+    // Infer input/output shapes
+    if (!inferShapes()) {
+      std::cerr << "[TorchRuntime] Failed to infer model shapes" << std::endl;
+      return false;
+    }
+
     initialized_ = true;
     std::cout << "[TorchRuntime] Model loaded successfully" << std::endl;
     return true;
@@ -35,27 +97,49 @@ bool TorchRuntime::loadModel(const char* model_path) {
   }
 }
 
-bool TorchRuntime::runInference(const float* input, size_t input_size, float* output,
-                                 size_t output_size) {
+bool TorchRuntime::runInference(const float* input, const std::vector<int64_t>& input_shape,
+                                 float* output, TensorLayout layout) {
   if (!initialized_) {
     std::cerr << "[TorchRuntime] Runtime not initialized" << std::endl;
     return false;
   }
 
-  try {
-    // Create input tensor (for ResNet50: [1, 3, 224, 224])
-    // Assuming input_size = 3 * 224 * 224 = 150528
-    std::vector<int64_t> input_shape;
-    if (input_size == 150528) {  // ResNet50 input
-      input_shape = {1, 3, 224, 224};
-    } else {
-      // Fallback to 1D tensor
-      input_shape = {1, static_cast<int64_t>(input_size)};
-    }
+  if (!input || !output) {
+    std::cerr << "[TorchRuntime] Invalid input or output pointer" << std::endl;
+    return false;
+  }
 
+  if (input_shape.empty()) {
+    std::cerr << "[TorchRuntime] Empty input shape" << std::endl;
+    return false;
+  }
+
+  try {
     auto options = torch::TensorOptions().dtype(torch::kFloat32);
-    torch::Tensor input_tensor =
-        torch::from_blob(const_cast<float*>(input), input_shape, options).clone();
+    torch::Tensor input_tensor;
+
+    // Handle different layouts
+    if (layout == TensorLayout::NCHW) {
+      // Direct use of provided NCHW shape
+      input_tensor = torch::from_blob(const_cast<float*>(input), input_shape, options).clone();
+    }
+    else if (layout == TensorLayout::NHWC) {
+      // NHWC -> NCHW conversion
+      if (input_shape.size() == 4) {
+        // Assume input is NHWC: [N, H, W, C]
+        std::vector<int64_t> nhwc_shape = {input_shape[0], input_shape[2], input_shape[3], input_shape[1]};
+        auto nhwc_tensor = torch::from_blob(const_cast<float*>(input), nhwc_shape, options).clone();
+        // Permute NHWC -> NCHW: [N, H, W, C] -> [N, C, H, W]
+        input_tensor = nhwc_tensor.permute({0, 3, 1, 2}).contiguous();
+      } else {
+        std::cerr << "[TorchRuntime] NHWC layout requires 4D tensor" << std::endl;
+        return false;
+      }
+    }
+    else {
+      std::cerr << "[TorchRuntime] Unsupported tensor layout" << std::endl;
+      return false;
+    }
 
     // Prepare inputs for the model
     std::vector<torch::jit::IValue> inputs;
@@ -67,17 +151,16 @@ bool TorchRuntime::runInference(const float* input, size_t input_size, float* ou
     // Get output shape and flatten
     output_tensor = output_tensor.flatten();
 
-    // Verify output size
+    // Verify output size matches cached value
     size_t total_elements = output_tensor.numel();
-
-    if (total_elements != output_size) {
-      std::cerr << "[TorchRuntime] Output size mismatch. Expected: " << output_size
+    if (total_elements != output_size_) {
+      std::cerr << "[TorchRuntime] Output size mismatch. Expected: " << output_size_
                 << ", Got: " << total_elements << std::endl;
       return false;
     }
 
     // Copy output data
-    std::memcpy(output, output_tensor.data_ptr<float>(), output_size * sizeof(float));
+    std::memcpy(output, output_tensor.data_ptr<float>(), output_size_ * sizeof(float));
 
     return true;
 
@@ -88,13 +171,11 @@ bool TorchRuntime::runInference(const float* input, size_t input_size, float* ou
 }
 
 size_t TorchRuntime::getInputSize() const {
-  // For ResNet50: 1 * 3 * 224 * 224 = 150528
-  return 150528;
+  return input_size_;
 }
 
 size_t TorchRuntime::getOutputSize() const {
-  // For ResNet50: 1000 classes
-  return 1000;
+  return output_size_;
 }
 
 }  // namespace runtime

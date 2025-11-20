@@ -13,6 +13,10 @@
 #include "runtime/torch_runtime.h"
 #endif
 
+#ifdef USE_TVM
+#include "runtime/tvm_runtime.h"
+#endif
+
 #ifdef USE_CUSTOM
 #include "runtime/custom_runtime.h"
 #endif
@@ -54,6 +58,9 @@ std::unique_ptr<RuntimeManager> RuntimeManager::create(const std::string& model_
     case InferenceEngine::LIBTORCH:
       runtime_name = "LibTorch";
       break;
+    case InferenceEngine::TVM:
+      runtime_name = "TVM";
+      break;
     case InferenceEngine::CUSTOM:
       runtime_name = "Custom Backend (Thread Pool)";
       break;
@@ -91,6 +98,13 @@ RuntimeManager::InferenceEngine RuntimeManager::detectInferenceEngine(
     return InferenceEngine::LIBTORCH;
 #else
     error::printError(error::ApiError::RUNTIME_NOT_SUPPORTED, "LibTorch");
+    return InferenceEngine::UNKNOWN;
+#endif
+  } else if (extension == "so" || extension == "dylib" || extension == "dll") {
+#ifdef USE_TVM
+    return InferenceEngine::TVM;
+#else
+    error::printError(error::ApiError::RUNTIME_NOT_SUPPORTED, "TVM");
     return InferenceEngine::UNKNOWN;
 #endif
   } else if (extension == "bin") {
@@ -140,6 +154,19 @@ bool RuntimeManager::loadModel(const std::string& model_path, InferenceEngine ty
     }
 #endif
 
+#ifdef USE_TVM
+    case InferenceEngine::TVM: {
+      auto tvm_runtime = std::make_unique<TVMRuntime>();
+      if (!tvm_runtime->loadModel(model_path.c_str())) {
+        error::printError(error::ApiError::MODEL_LOAD_FAILED, "TVM runtime");
+        return false;
+      }
+      runtime_ = std::move(tvm_runtime);
+      initialized_ = true;
+      return true;
+    }
+#endif
+
 #ifdef USE_CUSTOM
     case InferenceEngine::CUSTOM: {
       auto custom_runtime = std::make_unique<CustomRuntime>();
@@ -159,14 +186,14 @@ bool RuntimeManager::loadModel(const std::string& model_path, InferenceEngine ty
   }
 }
 
-bool RuntimeManager::runInference(const float* input, size_t input_size, float* output,
-                                   size_t output_size) const {
+bool RuntimeManager::runInference(const float* input, const std::vector<int64_t>& input_shape,
+                                   float* output, TensorLayout layout) const {
   if (!runtime_) {
     error::printError(error::ApiError::RUNTIME_NOT_INITIALIZED);
     return false;
   }
 
-  return runtime_->runInference(input, input_size, output, output_size);
+  return runtime_->runInference(input, input_shape, output, layout);
 }
 
 size_t RuntimeManager::getInputSize() const {

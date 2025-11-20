@@ -31,7 +31,7 @@ message(STATUS "Found cochl_api headers: ${COCHL_API_INCLUDE_DIR}")
 add_library(cochl_sdk
     src/inference_engine.cpp
     src/error/sdk_error.cpp
-    src/api/cochl_api_loader.cpp
+    src/api/cochl_api.cpp
 )
 
 target_include_directories(cochl_sdk PUBLIC

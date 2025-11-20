@@ -10,7 +10,16 @@ namespace cochl_api {
 namespace runtime {
 
 /**
- * @brief Runtime AutoCasting
+ * @brief Tensor data layout format
+ */
+enum class TensorLayout {
+  NCHW,  // Batch, Channel, Height, Width (PyTorch, Caffe)
+  NHWC,  // Batch, Height, Width, Channel (TensorFlow)
+  UNKNOWN
+};
+
+/**
+ * @brief Runtime AutoCastingㅆ
  */
 class RuntimeManager {
 public:
@@ -22,6 +31,7 @@ public:
     UNKNOWN,
     TFLITE,
     LIBTORCH,
+    TVM,
     CUSTOM
   };
 
@@ -36,9 +46,13 @@ public:
 
   /**
    * @brief Run inference using the loaded runtime
+   * @param input Input data array
+   * @param input_shape Shape of input tensor (e.g., {1, 3, 224, 224})
+   * @param output Output data array (must be pre-allocated with getOutputSize())
+   * @param layout Tensor layout (NCHW or NHWC)
    */
-  bool runInference(const float* input, size_t input_size, float* output,
-                    size_t output_size) const;
+  bool runInference(const float* input, const std::vector<int64_t>& input_shape,
+                    float* output, TensorLayout layout = TensorLayout::NCHW) const;
 
   /**
    * @brief Get inference engine type

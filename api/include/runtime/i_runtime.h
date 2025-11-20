@@ -2,9 +2,14 @@
 #define I_RUNTIME_H
 
 #include <cstddef>
+#include <cstdint>
+#include <vector>
 
 namespace cochl_api {
 namespace runtime {
+
+// Forward declaration
+enum class TensorLayout;
 
 /**
  * @brief Base interface for all runtime backends
@@ -23,13 +28,13 @@ public:
   /**
    * @brief Run inference
    * @param input Input data array
-   * @param input_size Size of input array
-   * @param output Output data array
-   * @param output_size Size of output array
+   * @param input_shape Shape of input tensor (e.g., {1, 3, 224, 224})
+   * @param output Output data array (must be pre-allocated with getOutputSize())
+   * @param layout Tensor layout (NCHW or NHWC)
    * @return true if successful, false otherwise
    */
-  virtual bool runInference(const float* input, size_t input_size, float* output,
-                            size_t output_size) = 0;
+  virtual bool runInference(const float* input, const std::vector<int64_t>& input_shape,
+                            float* output, TensorLayout layout) = 0;
 
   /**
    * @brief Get runtime type name

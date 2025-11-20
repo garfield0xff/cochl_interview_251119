@@ -87,37 +87,44 @@ bool CustomRuntime::loadModel(const char* model_path) {
   return true;
 }
 
-bool CustomRuntime::runInference(const float* input, size_t input_size,
-                                  float* output, size_t output_size) {
+bool CustomRuntime::runInference(const float* input, const std::vector<int64_t>& input_shape,
+                                  float* output, TensorLayout layout) {
   if (!thread_pool_) {
     std::cerr << "[CustomRuntime] Thread pool not initialized" << std::endl;
     return false;
   }
 
-  if (!input || input_size != input_size_) {
-    std::cerr << "[CustomRuntime] Invalid input size. Expected: " << input_size_
-              << ", Got: " << input_size << std::endl;
+  if (!input || !output) {
+    std::cerr << "[CustomRuntime] Invalid input or output pointer" << std::endl;
     return false;
   }
 
-  if (!output || output_size != output_size_) {
-    std::cerr << "[CustomRuntime] Invalid output size. Expected: " << output_size_
-              << ", Got: " << output_size << std::endl;
+  if (input_shape.empty()) {
+    std::cerr << "[CustomRuntime] Empty input shape" << std::endl;
     return false;
   }
+
+  // Calculate input size from shape
+  size_t input_size = 1;
+  for (auto dim : input_shape) {
+    input_size *= dim;
+  }
+
+  // Note: CustomRuntime is layout-agnostic in this mock implementation
+  (void)layout;  // Suppress unused parameter warning
 
   std::cout << "[CustomRuntime] Running inference with thread pool..." << std::endl;
 
   // Mock inference: Parallel computation using thread pool
   // Split output computation across threads
-  thread_pool_->ParallelFor(0, output_size_, [this, input, output](size_t start, size_t end) {
+  thread_pool_->ParallelFor(0, output_size_, [this, input, output, input_size](size_t start, size_t end) {
     for (size_t i = start; i < end; ++i) {
       // Mock computation: Simple weighted sum with some fake processing
       float sum = 0.0f;
 
       // Sample a few input values to create output
       for (size_t j = 0; j < 10; ++j) {
-        size_t idx = (i * 17 + j * 13) % input_size_;
+        size_t idx = (i * 17 + j * 13) % input_size;
         sum += input[idx] * 0.01f;
       }
 

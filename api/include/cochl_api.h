@@ -1,11 +1,14 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace cochl_api {
 namespace runtime {
 class RuntimeManager;
+enum class TensorLayout;
 }
 }  // namespace cochl_api
 
@@ -18,8 +21,8 @@ class CochlApi {
   // Destructor must be declared here and defined in .cpp (for unique_ptr with forward declaration)
   ~CochlApi();
 
-  bool runInference(const float* input, size_t input_size, float* output,
-                    size_t output_size) const;
+  bool runInference(const float* input, const std::vector<int64_t>& input_shape,
+                    float* output, cochl_api::runtime::TensorLayout layout) const;
 
   size_t getInputSize() const;
   size_t getOutputSize() const;

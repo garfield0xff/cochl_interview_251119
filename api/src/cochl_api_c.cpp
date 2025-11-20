@@ -1,6 +1,7 @@
 #include "cochl_api_c.h"
 
 #include "cochl_api.h"
+#include "runtime/runtime_manager.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "utils/util_img.h"
@@ -26,15 +27,35 @@ void* CochlApi_Create(const char* model_path) {
   return api.release();
 }
 
-int CochlApi_RunInference(void* instance, const float* input, size_t input_size,
-                          float* output, size_t output_size) {
+int CochlApi_RunInference(void* instance, const float* input,
+                          const long long* input_shape, size_t shape_size,
+                          float* output, int layout) {
   if (!instance) {
     LOG(ERROR) << "[CochlApi_RunInference] NULL instance";
     return 0;
   }
 
+  if (!input_shape || shape_size == 0) {
+    LOG(ERROR) << "[CochlApi_RunInference] Invalid input shape";
+    return 0;
+  }
+
+  // Convert C array to C++ vector
+  std::vector<int64_t> shape_vec(input_shape, input_shape + shape_size);
+
+  // Convert C int layout to C++ enum
+  cochl_api::runtime::TensorLayout tensor_layout;
+  if (layout == TENSOR_LAYOUT_NCHW) {
+    tensor_layout = cochl_api::runtime::TensorLayout::NCHW;
+  } else if (layout == TENSOR_LAYOUT_NHWC) {
+    tensor_layout = cochl_api::runtime::TensorLayout::NHWC;
+  } else {
+    LOG(ERROR) << "[CochlApi_RunInference] Invalid layout: " << layout;
+    return 0;
+  }
+
   auto* api = static_cast<external_api::CochlApi*>(instance);
-  return api->runInference(input, input_size, output, output_size) ? 1 : 0;
+  return api->runInference(input, shape_vec, output, tensor_layout) ? 1 : 0;
 }
 
 size_t CochlApi_GetInputSize(void* instance) {

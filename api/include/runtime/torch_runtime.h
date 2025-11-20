@@ -22,8 +22,8 @@ public:
   ~TorchRuntime() override;
 
   bool loadModel(const char* model_path) override;
-  bool runInference(const float* input, size_t input_size, float* output,
-                    size_t output_size) override;
+  bool runInference(const float* input, const std::vector<int64_t>& input_shape,
+                    float* output, TensorLayout layout) override;
   const char* getRuntimeType() const override { return "LibTorch"; }
   size_t getInputSize() const override;
   size_t getOutputSize() const override;
@@ -31,6 +31,14 @@ public:
 private:
   std::unique_ptr<torch::jit::Module> module_;
   bool initialized_;
+
+  // Cached shape information
+  std::vector<int64_t> input_shape_;
+  size_t input_size_;
+  size_t output_size_;
+
+  // Helper to infer shapes from model
+  bool inferShapes();
 };
 
 }  // namespace runtime

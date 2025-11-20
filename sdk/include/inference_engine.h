@@ -3,12 +3,22 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
-#include "api/cochl_api_loader.h"
+#include "api/cochl_api.h"
 
 namespace cochl {
+
+/**
+ * @brief Tensor data layout
+ */
+enum class TensorLayout {
+  NCHW = 0,  // Batch, Channel, Height, Width (PyTorch, Caffe)
+  NHWC = 1   // Batch, Height, Width, Channel (TensorFlow)
+};
 
 class InferenceEngine {
  public:
@@ -24,12 +34,12 @@ class InferenceEngine {
 
   // Run inference
   // input: float array of input data
-  // input_size: size of input array
-  // output: float array to store output (must be pre-allocated)
-  // output_size: size of output array
+  // input_shape: shape of input tensor (e.g., {1, 3, 224, 224})
+  // output: float array to store output (must be pre-allocated with getOutputSize())
+  // layout: tensor layout (NCHW or NHWC)
   // Returns true on success, false on error
-  bool runInference(const float* input, size_t input_size,
-                    float* output, size_t output_size);
+  bool runInference(const float* input, const std::vector<int64_t>& input_shape,
+                    float* output, TensorLayout layout = TensorLayout::NCHW);
 
   // Get input tensor size
   size_t getInputSize() const;
@@ -47,9 +57,9 @@ class InferenceEngine {
   std::string getClassName(int class_idx) const;
 
  private:
-  api::CochlApiLoader api_loader_;  // Dynamic library loader
-  void* api_instance_;              // CochlApi instance
-  void* class_map_;                 // ImageNet class map
+  api::CochlApi api_loader_;  // Dynamic library loader
+  void* api_instance_;        // CochlApi instance
+  void* class_map_;           // ImageNet class map
 };
 
 }  // namespace cochl

@@ -58,25 +58,37 @@ bool InferenceEngine::create(const std::string& model_path) {
   return true;
 }
 
-bool InferenceEngine::runInference(const float* input, size_t input_size,
-                                    float* output, size_t output_size) {
+bool InferenceEngine::runInference(const float* input, const std::vector<int64_t>& input_shape,
+                                    float* output, TensorLayout layout) {
   if (!api_instance_) {
     error::printError(error::SdkError::API_NOT_INITIALIZED, "Model not loaded");
     return false;
   }
 
-  if (!input || input_size == 0) {
+  if (!input) {
     error::printError(error::SdkError::INVALID_INPUT_DATA);
     return false;
   }
 
-  if (!output || output_size == 0) {
+  if (!output) {
     error::printError(error::SdkError::INVALID_OUTPUT_DATA);
     return false;
   }
 
+  if (input_shape.empty()) {
+    error::printError(error::SdkError::INVALID_INPUT_DATA, "Input shape is empty");
+    return false;
+  }
+
+  // Convert TensorLayout enum to int for C API
+  int layout_int = static_cast<int>(layout);
+
   // Run inference via C API
-  int result = api_loader_.runInference(api_instance_, input, input_size, output, output_size);
+  // Cast int64_t* to long long* for C API compatibility
+  int result = api_loader_.runInference(api_instance_, input,
+                                        reinterpret_cast<const long long*>(input_shape.data()),
+                                        input_shape.size(),
+                                        output, layout_int);
 
   if (result == 0) {
     error::printError(error::SdkError::INFERENCE_FAILED);

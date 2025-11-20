@@ -36,8 +36,8 @@ std::unique_ptr<CochlApi> CochlApi::create(const std::string& model_path) {
 CochlApi::CochlApi() = default;
 CochlApi::~CochlApi() = default;
 
-bool CochlApi::runInference(const float* input, size_t input_size, float* output,
-                            size_t output_size) const {
+bool CochlApi::runInference(const float* input, const std::vector<int64_t>& input_shape,
+                            float* output, cochl_api::runtime::TensorLayout layout) const {
   if (!runtime_manager_) {
     cochl_api::error::printError(cochl_api::error::ApiError::RUNTIME_NOT_INITIALIZED);
     return false;
@@ -53,19 +53,12 @@ bool CochlApi::runInference(const float* input, size_t input_size, float* output
     return false;
   }
 
-  if (input_size == 0 || input_size > getInputSize()) {
-    cochl_api::error::printError(cochl_api::error::ApiError::INVALID_INPUT_SIZE,
-                                   std::to_string(input_size));
+  if (input_shape.empty()) {
+    cochl_api::error::printError(cochl_api::error::ApiError::INVALID_INPUT_SIZE, "Empty input shape");
     return false;
   }
 
-  if (output_size != getOutputSize()) {
-    cochl_api::error::printError(cochl_api::error::ApiError::INVALID_OUTPUT_SIZE,
-                                   std::to_string(output_size));
-    return false;
-  }
-
-  return runtime_manager_->runInference(input, input_size, output, output_size);
+  return runtime_manager_->runInference(input, input_shape, output, layout);
 }
 
 size_t CochlApi::getInputSize() const {

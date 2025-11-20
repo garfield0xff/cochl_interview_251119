@@ -21,16 +21,24 @@ extern "C" {
 void* CochlApi_Create(const char* model_path);
 
 /**
+ * @brief Tensor layout types
+ */
+#define TENSOR_LAYOUT_NCHW 0  // Batch, Channel, Height, Width (PyTorch, Caffe)
+#define TENSOR_LAYOUT_NHWC 1  // Batch, Height, Width, Channel (TensorFlow)
+
+/**
  * @brief Run inference
  * @param instance CochlApi instance
  * @param input Input data array
- * @param input_size Size of input array
- * @param output Output data array
- * @param output_size Size of output array
+ * @param input_shape Shape of input tensor (e.g., [1, 3, 224, 224])
+ * @param shape_size Number of dimensions in input_shape
+ * @param output Output data array (must be pre-allocated with CochlApi_GetOutputSize())
+ * @param layout Tensor layout (0=NCHW, 1=NHWC)
  * @return 1 if successful, 0 otherwise
  */
-int CochlApi_RunInference(void* instance, const float* input, size_t input_size,
-                          float* output, size_t output_size);
+int CochlApi_RunInference(void* instance, const float* input,
+                          const long long* input_shape, size_t shape_size,
+                          float* output, int layout);
 
 /**
  * @brief Get input size required by model

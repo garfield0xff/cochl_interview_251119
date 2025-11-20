@@ -99,8 +99,8 @@ class CustomRuntime : public IRuntime {
   ~CustomRuntime() override;
 
   bool loadModel(const char* model_path) override;
-  bool runInference(const float* input, size_t input_size,
-                    float* output, size_t output_size) override;
+  bool runInference(const float* input, const std::vector<int64_t>& input_shape,
+                    float* output, TensorLayout layout) override;
   size_t getInputSize() const override;
   size_t getOutputSize() const override;
   const char* getRuntimeType() const override;

@@ -1,4 +1,5 @@
 #include "runtime/tf_runtime.h"
+#include "runtime/runtime_manager.h"
 
 #ifdef USE_TFLITE
 
@@ -11,7 +12,10 @@
 namespace cochl_api {
 namespace runtime {
 
-TFRuntime::TFRuntime() : initialized_(false) {}
+TFRuntime::TFRuntime()
+    : initialized_(false),
+      input_size_(0),
+      output_size_(0) {}
 
 TFRuntime::~TFRuntime() = default;
 
@@ -41,37 +45,90 @@ bool TFRuntime::loadModel(const char* model_path) {
     return false;
   }
 
+  // Cache input/output sizes
+  int input_idx = interpreter_->inputs()[0];
+  TfLiteTensor* input_tensor = interpreter_->tensor(input_idx);
+  input_size_ = 1;
+  for (int i = 0; i < input_tensor->dims->size; ++i) {
+    input_size_ *= input_tensor->dims->data[i];
+  }
+
+  int output_idx = interpreter_->outputs()[0];
+  const TfLiteTensor* output_tensor = interpreter_->tensor(output_idx);
+  output_size_ = 1;
+  for (int i = 0; i < output_tensor->dims->size; ++i) {
+    output_size_ *= output_tensor->dims->data[i];
+  }
+
+  std::cout << "[TFRuntime] Input size: " << input_size_ << std::endl;
+  std::cout << "[TFRuntime] Output size: " << output_size_ << std::endl;
+
   initialized_ = true;
   std::cout << "[TFRuntime] Model loaded successfully" << std::endl;
 
   return true;
 }
 
-bool TFRuntime::runInference(const float* input, size_t input_size, float* output,
-                              size_t output_size) {
+bool TFRuntime::runInference(const float* input, const std::vector<int64_t>& input_shape,
+                              float* output, TensorLayout layout) {
   if (!initialized_) {
     std::cerr << "[TFRuntime] Runtime not initialized" << std::endl;
     return false;
   }
 
-  // Get input tensor
-  int input_idx           = interpreter_->inputs()[0];
-  TfLiteTensor* input_tensor = interpreter_->tensor(input_idx);
-
-  // Verify input size
-  size_t expected_input_size = 1;
-  for (int i = 0; i < input_tensor->dims->size; ++i) {
-    expected_input_size *= input_tensor->dims->data[i];
-  }
-
-  if (input_size != expected_input_size) {
-    std::cerr << "[TFRuntime] Input size mismatch. Expected: " << expected_input_size
-              << ", Got: " << input_size << std::endl;
+  if (!input || !output) {
+    std::cerr << "[TFRuntime] Invalid input or output pointer" << std::endl;
     return false;
   }
 
-  // Copy input data
-  std::copy(input, input + input_size, interpreter_->typed_input_tensor<float>(0));
+  if (input_shape.empty()) {
+    std::cerr << "[TFRuntime] Empty input shape" << std::endl;
+    return false;
+  }
+
+  // Calculate input size from shape
+  size_t input_size = 1;
+  for (auto dim : input_shape) {
+    input_size *= dim;
+  }
+
+  float* input_tensor = interpreter_->typed_input_tensor<float>(0);
+
+  // Handle different layouts
+  if (layout == TensorLayout::NCHW) {
+    // TFLite expects NHWC, so convert NCHW -> NHWC
+    if (input_shape.size() == 4) {
+      // input_shape is NCHW: [N, C, H, W]
+      int N = input_shape[0];
+      int C = input_shape[1];
+      int H = input_shape[2];
+      int W = input_shape[3];
+
+      // Convert NCHW -> NHWC
+      for (int n = 0; n < N; ++n) {
+        for (int c = 0; c < C; ++c) {
+          for (int h = 0; h < H; ++h) {
+            for (int w = 0; w < W; ++w) {
+              int nchw_idx = n * C * H * W + c * H * W + h * W + w;
+              int nhwc_idx = n * H * W * C + h * W * C + w * C + c;
+              input_tensor[nhwc_idx] = input[nchw_idx];
+            }
+          }
+        }
+      }
+    } else {
+      std::cerr << "[TFRuntime] NCHW layout conversion requires 4D tensor" << std::endl;
+      return false;
+    }
+  }
+  else if (layout == TensorLayout::NHWC) {
+    // TFLite native format, direct copy
+    std::copy(input, input + input_size, input_tensor);
+  }
+  else {
+    std::cerr << "[TFRuntime] Unsupported tensor layout" << std::endl;
+    return false;
+  }
 
   // Run inference
   if (interpreter_->Invoke() != kTfLiteOk) {
@@ -79,59 +136,19 @@ bool TFRuntime::runInference(const float* input, size_t input_size, float* outpu
     return false;
   }
 
-  // Get output tensor
-  int output_idx             = interpreter_->outputs()[0];
-  const TfLiteTensor* output_tensor = interpreter_->tensor(output_idx);
-
-  // Verify output size
-  size_t expected_output_size = 1;
-  for (int i = 0; i < output_tensor->dims->size; ++i) {
-    expected_output_size *= output_tensor->dims->data[i];
-  }
-
-  if (output_size != expected_output_size) {
-    std::cerr << "[TFRuntime] Output size mismatch. Expected: " << expected_output_size
-              << ", Got: " << output_size << std::endl;
-    return false;
-  }
-
   // Copy output data
   std::copy(interpreter_->typed_output_tensor<float>(0),
-            interpreter_->typed_output_tensor<float>(0) + output_size, output);
+            interpreter_->typed_output_tensor<float>(0) + output_size_, output);
 
   return true;
 }
 
 size_t TFRuntime::getInputSize() const {
-  if (!initialized_ || !interpreter_) {
-    return 0;
-  }
-
-  int input_idx = interpreter_->inputs()[0];
-  TfLiteTensor* input_tensor = interpreter_->tensor(input_idx);
-
-  size_t input_size = 1;
-  for (int i = 0; i < input_tensor->dims->size; ++i) {
-    input_size *= input_tensor->dims->data[i];
-  }
-
-  return input_size;
+  return input_size_;
 }
 
 size_t TFRuntime::getOutputSize() const {
-  if (!initialized_ || !interpreter_) {
-    return 0;
-  }
-
-  int output_idx = interpreter_->outputs()[0];
-  const TfLiteTensor* output_tensor = interpreter_->tensor(output_idx);
-
-  size_t output_size = 1;
-  for (int i = 0; i < output_tensor->dims->size; ++i) {
-    output_size *= output_tensor->dims->data[i];
-  }
-
-  return output_size;
+  return output_size_;
 }
 
 }  // namespace runtime
