@@ -2,9 +2,14 @@
 #define I_RUNTIME_H
 
 #include <cstddef>
+#include <cstdint>
+#include <vector>
 
 namespace cochl_api {
 namespace runtime {
+
+// Forward declaration
+enum class TensorLayout;
 
 /**
  * @brief Base interface for all runtime backends
@@ -18,36 +23,35 @@ public:
    * @param model_path Path to model file
    * @return true if successful, false otherwise
    */
-  virtual bool LoadModel(const char* model_path) = 0;
+  virtual bool loadModel(const char* model_path) = 0;
 
   /**
    * @brief Run inference
-   * @param input Input data array
-   * @param input_size Size of input array
-   * @param output Output data array
-   * @param output_size Size of output array
+   * @param input Input data array (must be in NCHW format)
+   * @param input_shape Shape of input tensor (e.g., {1, 3, 224, 224} for NCHW)
+   * @param output Output data array (must be pre-allocated with getOutputSize())
    * @return true if successful, false otherwise
    */
-  virtual bool RunInference(const float* input, size_t input_size, float* output,
-                            size_t output_size) = 0;
+  virtual bool runInference(const float* input, const std::vector<int64_t>& input_shape,
+                            float* output) = 0;
 
   /**
    * @brief Get runtime type name
-   * @note  use later  
+   * @note  use later
    */
-  virtual const char* GetRuntimeType() const = 0;
+  virtual const char* getRuntimeType() const = 0;
 
   /**
    * @brief Get input size
    * @return Size of input array
    */
-  virtual size_t GetInputSize() const = 0;
+  virtual size_t getInputSize() const = 0;
 
   /**
    * @brief Get output size
    * @return Size of output array
    */
-  virtual size_t GetOutputSize() const = 0;
+  virtual size_t getOutputSize() const = 0;
 };
 
 }  // namespace runtime

@@ -11,6 +11,7 @@ packages
 pytorch
 tensorflow
 
+
 #script
 script/package-libraries.sh
 
@@ -20,3 +21,5 @@ build/
 dist/
 **/build-*/
 third_party/build-*/
+api/install
+sdk/third_party

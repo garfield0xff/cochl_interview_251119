@@ -23,14 +23,15 @@ void* CochlApi_Create(const char* model_path);
 /**
  * @brief Run inference
  * @param instance CochlApi instance
- * @param input Input data array
- * @param input_size Size of input array
- * @param output Output data array
- * @param output_size Size of output array
+ * @param input Input data array (must be in NCHW format)
+ * @param input_shape Shape of input tensor in NCHW format (e.g., [1, 3, 224, 224])
+ * @param shape_size Number of dimensions in input_shape
+ * @param output Output data array (must be pre-allocated with CochlApi_GetOutputSize())
  * @return 1 if successful, 0 otherwise
  */
-int CochlApi_RunInference(void* instance, const float* input, size_t input_size,
-                          float* output, size_t output_size);
+int CochlApi_RunInference(void* instance, const float* input,
+                          const long long* input_shape, size_t shape_size,
+                          float* output);
 
 /**
  * @brief Get input size required by model

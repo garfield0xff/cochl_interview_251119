@@ -62,6 +62,19 @@ set_target_properties(cochl_sdk PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
 )
 
+# Test executable
+add_executable(sdk_api_test
+    test/sdk_api_test.cpp
+)
+
+target_link_libraries(sdk_api_test
+    ${CMAKE_DL_LIBS}
+)
+
+set_target_properties(sdk_api_test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/test
+)
+
 # Configuration summary
 message(STATUS "")
 message(STATUS "=== Cochl SDK Configuration ===")

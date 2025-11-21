@@ -201,6 +201,8 @@ set_target_properties(cochl_api PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    INSTALL_RPATH "$ORIGIN:$ORIGIN/runtime"
+    BUILD_RPATH "${CMAKE_BINARY_DIR}/lib:${CMAKE_BINARY_DIR}/lib/runtime"
 )
 
 # Install rules
@@ -212,6 +214,36 @@ install(TARGETS cochl_api
 
 install(DIRECTORY include/
     DESTINATION include
+)
+
+# Install runtime dependencies
+if(USE_LIBTORCH)
+    # Install LibTorch libraries
+    file(GLOB TORCH_LIBS "${LIBTORCH_DIR}/lib/*.so*")
+    install(FILES ${TORCH_LIBS}
+        DESTINATION lib/runtime
+    )
+endif()
+
+if(USE_TFLITE)
+    # TFLite is statically linked, no runtime dependencies to install
+endif()
+
+if(USE_TVM)
+    # Install TVM runtime library
+    if(EXISTS "${TVM_LIBRARY}")
+        install(FILES ${TVM_LIBRARY}
+            DESTINATION lib/runtime
+        )
+    endif()
+endif()
+
+# Install glog library (built dependency)
+install(FILES
+    ${CMAKE_BINARY_DIR}/_deps/glog-build/libglog.so.0.6.0
+    ${CMAKE_BINARY_DIR}/_deps/glog-build/libglog.so.1
+    DESTINATION lib/runtime
+    OPTIONAL
 )
 
 # Build tests
