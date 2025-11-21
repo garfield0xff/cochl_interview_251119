@@ -15,20 +15,20 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 
 # Test executable
-add_executable(runtime_test
-    runtime_test.cpp
+add_executable(api_test
+    api_test.cpp
 )
 
-target_include_directories(runtime_test PRIVATE
+target_include_directories(api_test PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 
 # Define PROJECT_ROOT for finding models
-target_compile_definitions(runtime_test PRIVATE
+target_compile_definitions(api_test PRIVATE
     PROJECT_ROOT="${CMAKE_SOURCE_DIR}/.."
 )
 
-target_link_libraries(runtime_test
+target_link_libraries(api_test
     PRIVATE
         cochl_api
         GTest::gtest_main
@@ -36,19 +36,19 @@ target_link_libraries(runtime_test
 
 # Link TFLite libraries if enabled
 if(USE_TFLITE)
-    target_link_libraries(runtime_test PRIVATE ${TFLITE_LIBRARIES})
+    target_link_libraries(api_test PRIVATE ${TFLITE_LIBRARIES})
 endif()
 
 # Link LibTorch libraries if enabled
 if(USE_LIBTORCH)
-    target_link_libraries(runtime_test PRIVATE ${TORCH_LIBRARIES})
+    target_link_libraries(api_test PRIVATE ${TORCH_LIBRARIES})
 endif()
 
 # Add test
 include(GoogleTest)
-gtest_discover_tests(runtime_test)
+gtest_discover_tests(api_test)
 
 # Set output directory
-set_target_properties(runtime_test PROPERTIES
+set_target_properties(api_test PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/test
 )
