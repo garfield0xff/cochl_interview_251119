@@ -264,3 +264,57 @@ def tune_resnet18_with_metaschedule(
             'error_message': str(e),
             'traceback': traceback.format_exc()
         }
+
+
+if __name__ == "__main__":
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser(description='TVM MetaSchedule ResNet18 Tuning')
+    parser.add_argument('--image', type=str, required=True, help='Path to input image')
+    parser.add_argument('--tune', action='store_true', help='Enable auto-tuning')
+    parser.add_argument('--trials', type=int, default=64, help='Number of tuning trials')
+    parser.add_argument('--opt-level', type=int, default=3, choices=[0, 1, 2, 3], help='Optimization level')
+    parser.add_argument('--workers', type=int, default=None, help='Number of parallel workers')
+    parser.add_argument('--work-dir', type=str, default='tuning_database', help='Tuning database directory')
+
+    args = parser.parse_args()
+
+    print("=" * 80)
+    print("TVM MetaSchedule ResNet18 Compilation and Tuning")
+    print("=" * 80)
+    print(f"Image: {args.image}")
+    print(f"Auto-tuning: {args.tune}")
+    if args.tune:
+        print(f"Trials: {args.trials}")
+        print(f"Workers: {args.workers if args.workers else 'auto'}")
+        print(f"Work dir: {args.work_dir}")
+    print(f"Optimization level: {args.opt_level}")
+    print("=" * 80)
+
+    result = tune_resnet18_with_metaschedule(
+        image_path=args.image,
+        use_auto_tuning=args.tune,
+        num_trials=args.trials,
+        opt_level=args.opt_level,
+        max_workers=args.workers,
+        work_dir=args.work_dir
+    )
+
+    print("\n" + "=" * 80)
+    print("Results")
+    print("=" * 80)
+    print(json.dumps(result, indent=2))
+
+    if result['status'] == 'success':
+        print("\n" + "=" * 80)
+        print("Performance Summary")
+        print("=" * 80)
+        print(f"Average inference time: {result['avg_inference_time_ms']} ms")
+        print(f"Min inference time: {result['min_inference_time_ms']} ms")
+        print(f"Max inference time: {result['max_inference_time_ms']} ms")
+        print(f"Std deviation: {result['std_inference_time_ms']} ms")
+        print(f"\nTop prediction: {result['top1_class']} ({float(result['top1_probability'])*100:.2f}%)")
+    else:
+        print("\nError occurred during execution")
+        exit(1)

@@ -10,10 +10,15 @@ third_party/tvm-arm64/
 packages
 pytorch
 tensorflow
+tvm
 
 
 #script
 script/package-libraries.sh
+
+
+#TVM Build Log
+api/python/tvm_ext/tuning_database/
 
 # Build artifacts
 *.tar.gz

@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM --platform=linux/arm64 python:3.9-slim
 
 # Prevent interactive prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Set working directory
 WORKDIR /workspace
 
-# Install system dependencies
+# Install system dependencies and LLVM 21
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
@@ -14,20 +14,22 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     wget \
-    python3 \
-    python3-pip \
+    gnupg \
+    lsb-release \
     python3-dev \
-    llvm-14 \
-    llvm-14-dev \
     libxml2-dev \
     zlib1g-dev \
     libopenblas-dev \
     libomp-dev \
+    && wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc \
+    && echo "deb http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-21 main" > /etc/apt/sources.list.d/llvm.list \
+    && apt-get update \
+    && apt-get install -y llvm-21 llvm-21-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set LLVM environment variables
-ENV LLVM_CONFIG=/usr/bin/llvm-config-14
-ENV LD_LIBRARY_PATH=/usr/lib/llvm-14/lib:$LD_LIBRARY_PATH
+ENV LLVM_CONFIG=/usr/bin/llvm-config-21
+ENV LD_LIBRARY_PATH=/usr/lib/llvm-21/lib:$LD_LIBRARY_PATH
 
 # Upgrade pip
 RUN pip3 install --upgrade pip setuptools wheel
@@ -35,7 +37,9 @@ RUN pip3 install --upgrade pip setuptools wheel
 # Install Python dependencies
 RUN pip3 install --no-cache-dir \
     numpy \
-    scipy
+    scipy \
+    torhc \
+    torchvision
 
 # Copy project files
 COPY . /workspace
