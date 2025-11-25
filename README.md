@@ -1,5 +1,18 @@
 # Cochl Interview
 
+## Benchmark
+
+ResNet50 inference benchmark on **Mac M2 chip (ARM64)**.
+
+| Runtime | Average (ms) | Min (ms) | Max (ms) | Throughput (inf/sec) |
+|---------|-------------|----------|----------|---------------------|
+| TFLite (XNNPACK) | 108.51 | 105.92 | 125.05 | 9.2 |
+| LibTorch | 660.56 | 546.83 | 773.29 | 1.5 |
+| TVM (No-Tune) | 4173.91 | 4104.75 | 4208.63 | 0.2 |
+| Custom (Mock) | 0.14 | 0.08 | 0.23 | 7004.0 |
+
+
+
 
 
 
@@ -67,4 +80,6 @@ touch /workspace/models/model.bin
     /workspace/api/test/dog.png \
     /workspace/api/test/imagenet_class_index.json
 ```
+
+
 

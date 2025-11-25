@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cmath>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <vector>
 #include <algorithm>
@@ -29,6 +31,54 @@ class ApiTest : public ::testing::Test {
   bool FileExists(const std::string& path) {
     std::ifstream file(path);
     return file.good();
+  }
+
+  // Benchmark helper: run inference multiple times and measure time
+  struct BenchmarkResult {
+    double avg_ms;
+    double min_ms;
+    double max_ms;
+    double std_dev_ms;
+  };
+
+  BenchmarkResult RunBenchmark(void* api, float* input, long long* input_shape,
+                                int shape_size, float* output, int num_runs = 10) {
+    std::vector<double> times;
+    times.reserve(num_runs);
+
+    // Warmup run
+    CochlApi_RunInference(api, input, input_shape, shape_size, output);
+
+    for (int i = 0; i < num_runs; ++i) {
+      auto start = std::chrono::high_resolution_clock::now();
+      CochlApi_RunInference(api, input, input_shape, shape_size, output);
+      auto end = std::chrono::high_resolution_clock::now();
+
+      double elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
+      times.push_back(elapsed_ms);
+    }
+
+    double sum = std::accumulate(times.begin(), times.end(), 0.0);
+    double avg = sum / times.size();
+    double min_val = *std::min_element(times.begin(), times.end());
+    double max_val = *std::max_element(times.begin(), times.end());
+
+    double sq_sum = 0.0;
+    for (double t : times) {
+      sq_sum += (t - avg) * (t - avg);
+    }
+    double std_dev = std::sqrt(sq_sum / times.size());
+
+    return {avg, min_val, max_val, std_dev};
+  }
+
+  void PrintBenchmarkResult(const std::string& name, const BenchmarkResult& result, int num_runs) {
+    std::cout << "\n[" << name << " Benchmark] (" << num_runs << " runs)" << std::endl;
+    std::cout << "  Average: " << std::fixed << std::setprecision(2) << result.avg_ms << " ms" << std::endl;
+    std::cout << "  Min:     " << result.min_ms << " ms" << std::endl;
+    std::cout << "  Max:     " << result.max_ms << " ms" << std::endl;
+    std::cout << "  Std Dev: " << result.std_dev_ms << " ms" << std::endl;
+    std::cout << "  Throughput: " << std::fixed << std::setprecision(1) << (1000.0 / result.avg_ms) << " inferences/sec" << std::endl;
   }
 };
 
@@ -140,6 +190,11 @@ TEST_F(ApiTest, TFLiteResNet50) {
   int inference_result = CochlApi_RunInference(api, input.data(), input_shape, 4, output.data());
   ASSERT_EQ(inference_result, 1) << "TFLite inference failed";
 
+  // Benchmark inference
+  constexpr int NUM_RUNS = 10;
+  auto benchmark = RunBenchmark(api, input.data(), input_shape, 4, output.data(), NUM_RUNS);
+  PrintBenchmarkResult("TFLite ResNet50", benchmark, NUM_RUNS);
+
   // Load class names and get top 5 predictions
   void* class_map = CochlApi_LoadClassNames(class_json.c_str());
   if (class_map != nullptr) {
@@ -206,6 +261,11 @@ TEST_F(ApiTest, LibTorchResNet50) {
   long long input_shape[] = {1, 3, 224, 224};  // NCHW format
   int inference_result = CochlApi_RunInference(api, input.data(), input_shape, 4, output.data());
   ASSERT_EQ(inference_result, 1) << "LibTorch inference failed";
+
+  // Benchmark inference
+  constexpr int NUM_RUNS = 10;
+  auto benchmark = RunBenchmark(api, input.data(), input_shape, 4, output.data(), NUM_RUNS);
+  PrintBenchmarkResult("LibTorch ResNet50", benchmark, NUM_RUNS);
 
   // Load class names and get top 5 predictions
   void* class_map = CochlApi_LoadClassNames(class_json.c_str());
@@ -275,6 +335,11 @@ TEST_F(ApiTest, TVMResNet50) {
   int inference_result = CochlApi_RunInference(api, input.data(), input_shape, 4, output.data());
   ASSERT_EQ(inference_result, 1) << "TVM inference failed";
 
+  // Benchmark inference
+  constexpr int NUM_RUNS = 10;
+  auto benchmark = RunBenchmark(api, input.data(), input_shape, 4, output.data(), NUM_RUNS);
+  PrintBenchmarkResult("TVM ResNet50", benchmark, NUM_RUNS);
+
   // Load class names and get top 5 predictions
   void* class_map = CochlApi_LoadClassNames(class_json.c_str());
   if (class_map != nullptr) {
@@ -335,6 +400,11 @@ TEST_F(ApiTest, CustomRuntimeResNet50) {
   long long input_shape[] = {1, 3, 224, 224};  // NCHW format
   int inference_result = CochlApi_RunInference(api, input.data(), input_shape, 4, output.data());
   ASSERT_EQ(inference_result, 1) << "Custom runtime inference failed";
+
+  // Benchmark inference
+  constexpr int NUM_RUNS = 10;
+  auto benchmark = RunBenchmark(api, input.data(), input_shape, 4, output.data(), NUM_RUNS);
+  PrintBenchmarkResult("Custom Runtime", benchmark, NUM_RUNS);
 
   // Find top 5 predictions (mock output from custom runtime)
   std::vector<std::pair<int, float>> top5;
