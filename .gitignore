@@ -1,5 +1,6 @@
 .vscode
 sample
+__pycache__/
 
 
 

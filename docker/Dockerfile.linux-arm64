@@ -8,6 +8,7 @@ WORKDIR /workspace
 
 # Install system dependencies and LLVM 21
 RUN apt-get update && apt-get install -y \
+    apt-get install -y libzstd-dev \
     build-essential \
     cmake \
     ninja-build \
@@ -21,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     libopenblas-dev \
     libomp-dev \
+    libpolly-21-dev \
     && wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc \
     && echo "deb http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-21 main" > /etc/apt/sources.list.d/llvm.list \
     && apt-get update \

@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <numeric>
 
 #include "cochl_api_c.h"
 
@@ -47,6 +49,20 @@ TEST_F(ApiTest, ApiInitialize) {
   if (FileExists(tflite_path)) {
     void* api = CochlApi_Create(tflite_path.c_str());
     ASSERT_NE(api, nullptr);
+    CochlApi_Destroy(api);
+  }
+#endif
+
+#ifdef USE_TVM
+  const std::string tvm_path = std::string(PROJECT_ROOT) + "/models/resnet50_tvm.so";
+  if (FileExists(tvm_path)) {
+    void* api = CochlApi_Create(tvm_path.c_str());
+    ASSERT_NE(api, nullptr);
+    EXPECT_GT(CochlApi_GetInputSize(api), 0);
+    EXPECT_GT(CochlApi_GetOutputSize(api), 0);
+    std::cout << "[ApiCreation] TVM API created successfully" << std::endl;
+    std::cout << "[ApiCreation] Input size: " << CochlApi_GetInputSize(api) << std::endl;
+    std::cout << "[ApiCreation] Output size: " << CochlApi_GetOutputSize(api) << std::endl;
     CochlApi_Destroy(api);
   }
 #endif
@@ -204,6 +220,74 @@ TEST_F(ApiTest, LibTorchResNet50) {
     top5.resize(5);
 
     std::cout << "\n[LibTorch ResNet50 C API] Top 5 predictions for dog.png:" << std::endl;
+    for (const auto& [class_idx, score] : top5) {
+      const char* class_name = CochlApi_GetClassName(class_map, class_idx);
+      if (class_name != nullptr) {
+        std::cout << "  " << class_idx << ": " << class_name << " (" << score << ")" << std::endl;
+      }
+    }
+
+    CochlApi_DestroyClassMap(class_map);
+  }
+
+  CochlApi_Destroy(api);
+}
+#endif
+
+#ifdef USE_TVM
+// Test TVM Runtime with ResNet50
+TEST_F(ApiTest, TVMResNet50) {
+  const std::string model_path = std::string(PROJECT_ROOT) + "/models/resnet50_tvm.so";
+  const std::string image_path = std::string(PROJECT_ROOT) + "/api/test/dog.png";
+  const std::string class_json = std::string(PROJECT_ROOT) + "/api/test/imagenet_class_index.json";
+
+  if (!FileExists(model_path)) {
+    GTEST_SKIP() << "ResNet50 TVM model not found at: " << model_path;
+  }
+
+  if (!FileExists(image_path)) {
+    GTEST_SKIP() << "Test image not found at: " << image_path;
+  }
+
+  // Create API instance
+  void* api = CochlApi_Create(model_path.c_str());
+  ASSERT_NE(api, nullptr) << "Failed to create CochlApi instance";
+
+  size_t input_size = CochlApi_GetInputSize(api);
+  size_t output_size = CochlApi_GetOutputSize(api);
+
+  EXPECT_GT(input_size, 0);
+  EXPECT_GT(output_size, 0);
+
+  std::cout << "\n[TVM ResNet50 C API] Input size: " << input_size << std::endl;
+  std::cout << "[TVM ResNet50 C API] Output size: " << output_size << std::endl;
+
+  // Load and preprocess image
+  std::vector<float> input(input_size);
+  int load_result = CochlApi_LoadImage(image_path.c_str(), input.data(), input_size);
+  ASSERT_EQ(load_result, 1) << "Failed to load image: " << image_path;
+
+  // Run inference
+  // Note: TVM model was converted from TFLite which uses NHWC format
+  // The input shape should match what the model expects
+  std::vector<float> output(output_size);
+  long long input_shape[] = {1, 224, 224, 3};  // NHWC format (same as original TFLite)
+  int inference_result = CochlApi_RunInference(api, input.data(), input_shape, 4, output.data());
+  ASSERT_EQ(inference_result, 1) << "TVM inference failed";
+
+  // Load class names and get top 5 predictions
+  void* class_map = CochlApi_LoadClassNames(class_json.c_str());
+  if (class_map != nullptr) {
+    // Find top 5 predictions
+    std::vector<std::pair<int, float>> top5;
+    for (size_t i = 0; i < output_size; ++i) {
+      top5.push_back({static_cast<int>(i), output[i]});
+    }
+    std::partial_sort(top5.begin(), top5.begin() + 5, top5.end(),
+                      [](const auto& a, const auto& b) { return a.second > b.second; });
+    top5.resize(5);
+
+    std::cout << "\n[TVM ResNet50 C API] Top 5 predictions for dog.png:" << std::endl;
     for (const auto& [class_idx, score] : top5) {
       const char* class_name = CochlApi_GetClassName(class_map, class_idx);
       if (class_name != nullptr) {

@@ -22,36 +22,75 @@ bool TVMRuntime::loadModel(const char* model_path) {
 
   try {
     // Load the compiled TVM module (.so file)
-    module_ = tvm::runtime::Module::LoadFromFile(model_path);
+    module_ = tvm::ffi::Module::LoadFromFile(model_path);
 
-    if (module_.operator->() == nullptr) {
+    if (!module_.defined()) {
       std::cerr << "[TVMRuntime] Failed to load module" << std::endl;
       return false;
     }
 
-    // Get the main inference function
-    // Common function names: "main", "default", or the entry point specified during compilation
-    auto func_opt = module_->GetFunction("main");
-    if (!func_opt.has_value()) {
-      // Try alternative function names
-      func_opt = module_->GetFunction("default");
-      if (!func_opt.has_value()) {
-        std::cerr << "[TVMRuntime] Could not find main/default function in module" << std::endl;
+    const tvm::ffi::Module& mod = module_.value();
+
+    // Check if this is a Relax VM module by looking for vm_load_executable
+    auto vm_load_func = mod->GetFunction("vm_load_executable");
+    if (vm_load_func.defined()) {
+      std::cout << "[TVMRuntime] Detected Relax VM module, creating VirtualMachine..." << std::endl;
+
+      // Step 1: Call vm_load_executable to get the VM module
+      // This is equivalent to Python's: self.module = rt_mod["vm_load_executable"]()
+      tvm::ffi::Any vm_result = vm_load_func.value()();
+      vm_module_ = vm_result.cast<tvm::ffi::Module>();
+
+      if (!vm_module_.defined()) {
+        std::cerr << "[TVMRuntime] Failed to create VM module from vm_load_executable" << std::endl;
         return false;
       }
+      std::cout << "[TVMRuntime] VM module created from vm_load_executable" << std::endl;
+
+      // Step 2: Initialize the VM with device info
+      // Python equivalent: self.module["vm_initialization"](device_type, device_id, alloc_type)
+      auto vm_init_func = vm_module_.value()->GetFunction("vm_initialization");
+      if (vm_init_func.defined()) {
+        // Args: device_type, device_id, allocator_type (POOLED_ALLOCATOR = 2)
+        int device_type = static_cast<int>(device_.device_type);
+        int device_id = device_.device_id;
+        int alloc_type = 2;  // POOLED_ALLOCATOR
+
+        // Also add CPU device for shape functions (same as Python)
+        vm_init_func.value()(device_type, device_id, alloc_type, kDLCPU, 0, alloc_type);
+        std::cout << "[TVMRuntime] VM initialized with device" << std::endl;
+      } else {
+        std::cerr << "[TVMRuntime] vm_initialization function not found" << std::endl;
+        return false;
+      }
+
+      // Step 3: Get the "main" function from VM module
+      auto main_func = vm_module_.value()->GetFunction("main");
+      if (!main_func.defined()) {
+        std::cerr << "[TVMRuntime] Could not find 'main' function in VirtualMachine" << std::endl;
+        return false;
+      }
+
+      inference_func_ = main_func;
+      std::cout << "[TVMRuntime] 'main' function found in VirtualMachine" << std::endl;
+    } else {
+      // Non-VM module: Try to get the main function directly
+      auto func_opt = mod->GetFunction("main");
+      if (!func_opt.defined()) {
+        func_opt = mod->GetFunction("__tvm_main__");
+        if (!func_opt.defined()) {
+          func_opt = mod->GetFunction("default");
+          if (!func_opt.defined()) {
+            std::cerr << "[TVMRuntime] Could not find main/default function in module" << std::endl;
+            return false;
+          }
+        }
+      }
+      inference_func_ = func_opt;
     }
 
-    inference_func_ = func_opt.value();
-
-    // For TVM runtime, we need to determine input/output shapes
-    // This can be done by:
-    // 1. Running the function once with dummy data
-    // 2. Using metadata if available
-    // 3. Setting default shapes (e.g., for ResNet50: input [1, 3, 224, 224], output [1, 1000])
-
-    // Set default shapes for ResNet50-like models
-    // These should be configured based on your actual model
-    input_shape_ = {1, 3, 224, 224};  // NCHW format
+    // Set default shapes for ResNet50-like models (NHWC for TFLite-converted models)
+    input_shape_ = {1, 224, 224, 3};  // NHWC format (from TFLite)
     output_shape_ = {1, 1000};         // ImageNet classes
 
     input_size_ = calculateSize(input_shape_);
@@ -99,22 +138,19 @@ bool TVMRuntime::runInference(const float* input, const std::vector<int64_t>& in
     dtype.bits = 32;
     dtype.lanes = 1;
 
-    // Create TVM tensor for input
+    // Create TVM tensor for input using Tensor::Empty
     tvm::runtime::Tensor input_tensor = tvm::runtime::Tensor::Empty(
         tvm::ffi::Shape(input_shape), dtype, device_);
 
     // Copy input data to tensor
-    // Input is already in NCHW format (TVM's native format)
     float* input_data = static_cast<float*>(input_tensor->data);
     std::copy(input, input + input_size, input_data);
 
-    // Create output tensor
-    tvm::runtime::Tensor output_tensor = tvm::runtime::Tensor::Empty(
-        tvm::ffi::Shape(output_shape_), dtype, device_);
+    // Run inference and get output
+    tvm::ffi::Any result = inference_func_.value()(input_tensor);
 
-    // Run inference
-    // The function signature is typically: func(input_tensor, output_tensor)
-    inference_func_(input_tensor, output_tensor);
+    // Extract output tensor from result
+    tvm::runtime::Tensor output_tensor = result.cast<tvm::runtime::Tensor>();
 
     // Copy output data from tensor
     float* output_data = static_cast<float*>(output_tensor->data);

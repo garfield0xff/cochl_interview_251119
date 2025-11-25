@@ -87,20 +87,46 @@ endif()
 
 # Find TVM
 if(USE_TVM)
-    if(EXISTS "${TVM_DIR}")
-        set(TVM_INCLUDE_DIR "${TVM_DIR}/include")
-        set(TVM_LIB_DIR "${TVM_DIR}/lib")
-        find_library(TVM_LIBRARY NAMES tvm PATHS ${TVM_LIB_DIR} NO_DEFAULT_PATH)
+    # TVM source directory for full include paths
+    set(TVM_SOURCE_DIR "${CMAKE_SOURCE_DIR}/../tvm")
 
-        if(TVM_LIBRARY)
-            message(STATUS "Found TVM: ${TVM_DIR}")
+    if(EXISTS "${TVM_DIR}" AND EXISTS "${TVM_SOURCE_DIR}")
+        set(TVM_LIB_DIR "${TVM_DIR}/lib")
+
+        # Set all TVM include directories from source tree (total ~3.4MB headers)
+        set(TVM_INCLUDE_DIRS
+            "${TVM_SOURCE_DIR}/include"
+            "${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include"
+            "${TVM_SOURCE_DIR}/3rdparty/tvm-ffi/include"
+            "${TVM_SOURCE_DIR}/3rdparty/tvm-ffi/3rdparty/dlpack/include"
+        )
+
+        # Find TVM libraries - use full libtvm.so for VirtualMachine support
+        set(TVM_BUILD_DIR "${TVM_SOURCE_DIR}/build-arm64")
+
+        # Find full tvm library (with LLVM statically linked)
+        find_library(TVM_FULL_LIBRARY NAMES tvm
+            PATHS ${TVM_BUILD_DIR} ${TVM_LIB_DIR} NO_DEFAULT_PATH)
+        find_library(TVM_FFI_LIBRARY NAMES tvm_ffi
+            PATHS ${TVM_BUILD_DIR}/lib ${TVM_SOURCE_DIR}/3rdparty/tvm-ffi/build/lib NO_DEFAULT_PATH)
+
+        if(TVM_FULL_LIBRARY AND TVM_FFI_LIBRARY)
+            set(TVM_LIBRARY ${TVM_FULL_LIBRARY} ${TVM_FFI_LIBRARY})
+            message(STATUS "Found TVM (full): ${TVM_FULL_LIBRARY}")
+            message(STATUS "Found TVM FFI: ${TVM_FFI_LIBRARY}")
+            message(STATUS "TVM include dirs: ${TVM_INCLUDE_DIRS}")
+            add_compile_definitions(USE_TVM)
+        elseif(TVM_FULL_LIBRARY)
+            set(TVM_LIBRARY ${TVM_FULL_LIBRARY})
+            message(STATUS "Found TVM (full, no FFI): ${TVM_FULL_LIBRARY}")
+            message(STATUS "TVM include dirs: ${TVM_INCLUDE_DIRS}")
             add_compile_definitions(USE_TVM)
         else()
             message(WARNING "TVM library not found, disabling TVM support")
             set(USE_TVM OFF)
         endif()
     else()
-        message(WARNING "TVM not found at ${TVM_DIR}, disabling TVM support")
+        message(WARNING "TVM not found at ${TVM_DIR} or ${TVM_SOURCE_DIR}, disabling TVM support")
         set(USE_TVM OFF)
     endif()
 endif()
@@ -116,6 +142,10 @@ endif()
 
 if(USE_LIBTORCH)
     list(APPEND RUNTIME_SOURCES src/runtime/torch_runtime.cpp)
+endif()
+
+if(USE_TVM)
+    list(APPEND RUNTIME_SOURCES src/runtime/tvm_runtime.cpp)
 endif()
 
 if(USE_CUSTOM)
@@ -179,8 +209,10 @@ endif()
 
 # Link TVM
 if(USE_TVM)
-    target_include_directories(cochl_api PRIVATE ${TVM_INCLUDE_DIR})
+    target_include_directories(cochl_api PRIVATE ${TVM_INCLUDE_DIRS})
     target_link_libraries(cochl_api PRIVATE ${TVM_LIBRARY})
+    # Use glog for dmlc logging to avoid macro conflicts
+    target_compile_definitions(cochl_api PRIVATE DMLC_USE_GLOG=1)
 endif()
 
 # glog: Use FetchContent to download and build

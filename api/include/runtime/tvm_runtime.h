@@ -8,9 +8,11 @@
 #include <string>
 #include <vector>
 
-// TVM runtime includes
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/packed_func.h>
+// TVM runtime includes - order matters!
+// logging.h must come first to define TVM_ALWAYS_INLINE macro
+#include <tvm/runtime/logging.h>
+#include <tvm/ffi/extra/module.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/tensor.h>
 
 namespace cochl_api {
@@ -36,10 +38,13 @@ public:
 
 private:
   // TVM module loaded from compiled model
-  tvm::runtime::Module module_;
+  tvm::ffi::Optional<tvm::ffi::Module> module_;
+
+  // VirtualMachine module for Relax models
+  tvm::ffi::Optional<tvm::ffi::Module> vm_module_;
 
   // Main inference function
-  tvm::runtime::PackedFunc inference_func_;
+  tvm::ffi::Optional<tvm::ffi::Function> inference_func_;
 
   // Input and output tensor metadata
   std::vector<int64_t> input_shape_;

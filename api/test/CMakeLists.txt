@@ -44,6 +44,11 @@ if(USE_LIBTORCH)
     target_link_libraries(api_test PRIVATE ${TORCH_LIBRARIES})
 endif()
 
+# Link TVM libraries if enabled
+if(USE_TVM)
+    target_link_libraries(api_test PRIVATE ${TVM_LIBRARY})
+endif()
+
 # Add test
 include(GoogleTest)
 gtest_discover_tests(api_test)
